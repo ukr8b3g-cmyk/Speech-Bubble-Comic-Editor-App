@@ -533,6 +533,8 @@ assert.match(editor, /for \(const entry of drag\.panels\)/);
 assert.match(editor, /panels\.forEach\(\(panel\) => panel\.image_scale = core\.clamp\(panel\.image_scale \* factor/);
 assert.match(editor, /panels\.forEach\(\(panel\) => panel\.image_id = null\)/);
 assert.match(editor, /selectedPanelImageIds\.clear\(\);\s*panelImageSelectionAnchorId = null;\s*selectedTarget = selectedPanelId \? "panel" : "page"/);
-assert.doesNotMatch(editor, /image_rotation/);
+assert.match(editor, /image_rotation/);
+assert.match(editor, /image_crop/);
+assert.match(editor, /imageLayerRotation\.drawCroppedImage/);
 
 console.log("comic_editor_integration_test: OK");

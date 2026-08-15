@@ -2,7 +2,7 @@
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 # Speech Bubble Comic Editor App
 
-> **Migration status:** Phase 2 complete. The standalone v0.1.8 baseline now includes the Forge Neo 0.7.10-style shared Page Images tray, equivalent Desktop sharing setting, and Forge 0.7.9-style Single Image replacement behavior. Crop/alignment and Quick Retouch are scheduled for later phases.
+> **Migration status:** Phase 3 complete. The standalone v0.1.8 baseline now includes shared Page Images, Forge-compatible Single Image replacement, non-destructive crop in all three workspaces, panel-image rotation, and multi-selection align/distribute. Quick Retouch is the next migration phase.
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 
@@ -22,7 +22,7 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 ## 配布状況
 
-後継版は現在移植作業中で、Phase 1では新しいインストーラー／EXEをまだ公開していません。
+後継版は現在移植作業中です。開発中のテスト用インストーラー／EXEは正式リリースではありません。
 
 移植元の安定版は [Speech Bubble 4koma Editor v0.1.8](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor/releases) です。
 
@@ -46,6 +46,14 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 `web\speech-bubble-editor.html`の直接表示は旧版互換・UI確認用で、現在のDesktopリリースと同等の動作を保証しません。ブラウザーからDesktop APIへ接続しないため、システムフォント、Settings、`.sbeproj`、指定フォルダーへの書き出しなども利用できません。
 
 ## 主な機能
+
+### Phase 3で追加した移植機能
+
+- 一枚画像／4コマ漫画／コミックの3モードで非破壊クロップ。クロップ状態を保持し、リセット／再編集に対応
+- 4コマ／コミックのコマ画像に回転を追加し、クロップ・回転・反転・不透明度・Cover/Contain・拡大率・オフセットを同じ描画経路で処理
+- 複数選択した素材を、選択範囲／共通コマ／ページ基準で左右・上下・中央へ整列
+- 3個以上の選択素材を水平／垂直に均等配置
+- 複数選択時の相対位置を維持した一括回転
 
 ### v0.1.8の主な修正
 
