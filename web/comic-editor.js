@@ -376,7 +376,7 @@
           <div class="comic-tray-list"></div>
           <input data-comic-image-input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
         `;
-        canvasPanel.insertBefore(tray, footer);
+        footer.parentElement?.insertBefore(tray, footer);
         elements.tray = tray;
         elements.trayList = tray.querySelector(".comic-tray-list");
         elements.imageInput = tray.querySelector("[data-comic-image-input]");
