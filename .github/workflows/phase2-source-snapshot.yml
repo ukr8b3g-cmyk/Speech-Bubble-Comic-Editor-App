@@ -1,0 +1,30 @@
+name: Phase 2 source snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/phase2-source-snapshot.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .git
+          zip -qr phase2-app-source.zip . -x 'phase2-app-source.zip'
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-app-source
+          path: phase2-app-source.zip
+          if-no-files-found: error
+          retention-days: 1
