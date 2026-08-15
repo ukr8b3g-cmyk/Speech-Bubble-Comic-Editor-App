@@ -2,7 +2,7 @@
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 # Speech Bubble Comic Editor App
 
-> **Migration status:** Phase 3 complete. The standalone v0.1.8 baseline now includes shared Page Images, Forge-compatible Single Image replacement, non-destructive crop in all three workspaces, panel-image rotation, and multi-selection align/distribute. Quick Retouch is the next migration phase.
+> **Migration status:** Phase 4 complete. The standalone v0.1.8 baseline now includes shared Page Images, non-destructive crop/alignment improvements, and Forge Neo 0.7.10 Quick Retouch. Phase 5 processing-diff integration is next.
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 
@@ -46,6 +46,15 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 `web\speech-bubble-editor.html`の直接表示は旧版互換・UI確認用で、現在のDesktopリリースと同等の動作を保証しません。ブラウザーからDesktop APIへ接続しないため、システムフォント、Settings、`.sbeproj`、指定フォルダーへの書き出しなども利用できません。
 
 ## 主な機能
+
+### Phase 4で追加した移植機能
+
+- Forge Neo 0.7.10の「簡易レタッチ / Quick Retouch」をDesktop版へ移植
+- ブラシ、消しゴム、スポイト、矩形／投げ縄／自動選択、色域選択、Quick Mask
+- Hue / Saturation、Brightness / Contrast、Tone Curve、ペイント／調整レイヤー、Undo / Redo、比較表示
+- 一枚画像では元画像レイヤーを保持したままレタッチ結果を新規画像レイヤーとして追加
+- 4コマ／コミックではレタッチ結果をPage Imagesへ追加し、既存の画像配置経路で利用
+- `.sbeproj` / Project Schemaは変更せず、Quick Retouch内部履歴は一時編集状態として扱う
 
 ### Phase 3で追加した移植機能
 

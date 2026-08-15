@@ -13,7 +13,7 @@
 - Add the standalone `shared_project_images` setting and keep the Forge-equivalent default enabled while preserving Desktop settings/storage APIs.
 - Persist Page Images tray state in `.sbeproj`, include tray-only images in project saves, and keep shared-image removal, Undo/Redo, workspace switching, and legacy project loading consistent.
 - Single Image replacement now follows the Forge 0.7.9 behavior: direct replacement refits the image, automatically follows image dimensions on an otherwise empty page, and asks before resizing an edited page. New +Image layers remain additive and start unlocked.
-- Known Phase 2 follow-up: 4-Panel Page Images drag/drop and duplicate tray insertion when reusing an existing Page Image still require a dedicated fix.
+- The verified 4-Panel Page Images placement fix is included. Duplicate tray insertion when reusing an existing Page Image remains a separate follow-up.
 
 ## Phase 3 — Crop and alignment
 
@@ -26,7 +26,11 @@
 
 ## Phase 4 — Quick Retouch
 
-Port Quick Retouch and adapt its image input/output, settings, persistence, and application routes to the Desktop APIs.
+- Port Forge Neo 0.7.10 Quick Retouch without Forge host adapters or server dependencies.
+- Single Image applies the result as a new image layer while preserving the source layer.
+- 4-Panel Manga and Comic add the result back to Page Images through the existing editor image pipeline.
+- Keep `.sbeproj` and Project Schema unchanged; Quick Retouch document/history state remains transient.
+- Phase 4 implementation complete; Phase 5 processing-diff integration is next.
 
 ## Phase 5 — Processing diff integration
 
