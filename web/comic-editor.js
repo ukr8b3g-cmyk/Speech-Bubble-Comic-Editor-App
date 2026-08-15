@@ -257,6 +257,10 @@
       return found?.kind === "panel" ? found : null;
     }
 
+    function panelEditable(panel) {
+      return panel?.kind === "panel" && panel.locked !== true && panel.collapsed !== true;
+    }
+
     function selectedHeading() {
       return comic.headings.find((heading) => heading.id === selectedHeadingId) || null;
     }
