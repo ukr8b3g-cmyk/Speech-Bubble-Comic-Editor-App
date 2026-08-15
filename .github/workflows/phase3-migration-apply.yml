@@ -1,0 +1,48 @@
+name: Apply Phase 3 migration
+
+on:
+  push:
+    branches:
+      - phase3-migration-20260815
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply Phase 3 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .phase3/part00 .phase3/part01 .phase3/part02 .phase3/part03 .phase3/part04 > /tmp/phase3.patch.xz.b64
+          base64 -d /tmp/phase3.patch.xz.b64 > /tmp/phase3.patch.xz
+          xz -dc /tmp/phase3.patch.xz > /tmp/phase3.patch
+          git apply --check /tmp/phase3.patch
+          git apply /tmp/phase3.patch
+          rm -rf .phase3
+          git rm --ignore-unmatch .github/workflows/phase3-migration-apply.yml
+
+      - name: Validate Phase 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/*.cjs; do node "$f"; done
+          while IFS= read -r -d '' f; do node --check "$f" >/dev/null; done < <(find web -type f -name '*.js' -print0 | sort -z)
+          python -m compileall -q desktop_app desktop_launcher.py
+          git diff --check
+
+      - name: Commit Phase 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Port Phase 3 crop and alignment features"
+          git push origin HEAD:phase3-migration-20260815
