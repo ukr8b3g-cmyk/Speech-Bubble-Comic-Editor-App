@@ -1,0 +1,43 @@
+name: Phase 1 README cleanup
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fix successor distribution wording
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("README.md")
+          text = path.read_text(encoding="utf-8")
+          old = "現行リリース（v0.1.8）の配布物はWindows x64セットアップEXEのみです。ソースから起動する場合は`setup_and_start.cmd`で専用`.venv`を準備し、以後は`start.cmd`を使用してください。"
+          new = "後継版の新しい配布物はまだ公開していません。ソースから起動する場合は`setup_and_start.cmd`で専用`.venv`を準備し、以後は`start.cmd`を使用してください。移植元v0.1.8の配布物は旧リポジトリのReleasesから取得できます。"
+          if old not in text:
+              raise SystemExit("Expected predecessor release sentence was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="")
+          PY
+          rm -f .github/workflows/phase1-readme-fix.yml
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+      - name: Commit and push cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Phase 1: clarify successor distribution status"
+          git push origin HEAD:main
