@@ -15,7 +15,8 @@ DEFAULTS = {
     "window_maximized": True,
     "theme": "system",
     "language": "auto",
-    "show_empty_canvas_guide": True,
+    "show_empty_canvas_guide": False,
+    "shared_project_images": True,
     "last_project_directory": "",
     "export_directory": "",
     "last_export_directory": "",
@@ -84,7 +85,8 @@ class SettingsStore:
         merged["window_maximized"] = bool(maximized)
         merged["theme"] = merged["theme"] if merged["theme"] in {"system", "dark", "light"} else "system"
         merged["language"] = merged["language"] if merged["language"] in {"auto", "ja", "en"} else "auto"
-        merged["show_empty_canvas_guide"] = bool(merged.get("show_empty_canvas_guide", True))
+        merged["show_empty_canvas_guide"] = bool(merged.get("show_empty_canvas_guide", False))
+        merged["shared_project_images"] = bool(merged.get("shared_project_images", True))
         merged["export_directory"] = str(merged.get("export_directory", "") or "").strip()
         merged["last_export_directory"] = str(merged.get("last_export_directory", "") or "").strip()
         merged["auto_export_to_directory"] = bool(merged.get("auto_export_to_directory", False))

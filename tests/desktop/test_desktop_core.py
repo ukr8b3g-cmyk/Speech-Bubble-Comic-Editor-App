@@ -288,7 +288,8 @@ class DesktopCoreTest(unittest.TestCase):
             settings = SettingsStore(paths.settings)
             self.assertEqual(settings.load()["theme"], "system")
             self.assertEqual(settings.load()["language"], "auto")
-            self.assertTrue(settings.load()["show_empty_canvas_guide"])
+            self.assertFalse(settings.load()["show_empty_canvas_guide"])
+            self.assertTrue(settings.load()["shared_project_images"])
             self.assertEqual(settings.load()["auto_save_interval_seconds"], 30)
             self.assertNotIn("background_removal_history_limit", settings.load())
             settings.path.write_text(

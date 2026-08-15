@@ -23,7 +23,7 @@ for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi))
   if (match[1].trim()) assert.doesNotThrow(() => new Function(match[1]), "Inline Editor script must parse");
 }
 
-for (const asset of ["comic-editor.css", "comic-panels.js", "comic-editor.js", "general-comic-editor.css", "editor-mode-controller.js", "general-comic-core.js", "general-comic-editor.js"]) {
+for (const asset of ["comic-editor.css", "comic-panels.js", "comic-editor.js", "general-comic-editor.css", "editor-mode-controller.js", "project-image-tray.js", "general-comic-core.js", "general-comic-editor.js"]) {
   assert.ok(html.includes(`./${asset}?v=`), `${asset} must be loaded by the Editor with cache busting`);
 }
 
@@ -277,6 +277,13 @@ assert.match(desktopShell, /SpeechBubbleApplyRuntimeSettings/);
 assert.match(html, /let showEmptyCanvasGuide = params\.get\("showEmptyCanvasGuide"\) !== "0"/);
 assert.match(html, /emptyCanvasState"\)\.hidden=hasDocument\|\|activeWorkspace!=="single"\|\|!showEmptyCanvasGuide/);
 assert.match(html, /showEmptyCanvasGuide=settings\?\.show_empty_canvas_guide!==false/);
+assert.match(html, /nextSharedProjectImages=settings\?\.shared_project_images!==false/);
+assert.match(html, /payload\.image_trays=projectImageTray\.serialize\(\)/);
+assert.match(html, /initializeProjectImageTray\(\)/);
+assert.match(html, /projectImageTray\?\.setWorkspace\(target\)/);
+assert.match(html, /projectImageTray\.place\(projectImageId,\{point\}\)/);
+assert.match(editor, /function importExternalImage\(blob, asset, control = \{\}\)/);
+assert.match(editor, /function removeAssetUsage\(imageId, control = \{\}\)/);
 assert.match(html, /id="fitTextBoxNow"/);
 assert.match(html, /fitTextBox\(current,true,false\)/);
 assert.match(html, /const preserveManualBox=!item\.auto_fit/);
@@ -337,6 +344,7 @@ for (const setting of [
   "auto_save_interval_seconds",
   "startup_behavior",
   "show_empty_canvas_guide",
+  "shared_project_images",
 ]) {
   assert.ok(desktopShell.includes(`data-desktop-setting="${setting}"`), `Desktop settings must include ${setting}`);
 }

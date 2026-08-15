@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./desktop/desktop.css?v=0.5.0-desktop-5">
   <script src="./project-schema.js?v=project-schema-1"></script>
   <script src="./editor-mode-controller.js?v=general-comic-1"></script>
+  <script src="./project-image-tray.js?v=phase2-shared-page-images-1"></script>
   <script src="./general-comic-core.js?v=general-comic-2"></script>
   <script src="./comic-panels.js?v=0.1.4-panel-patterns-1"></script>
   <script src="./comic-editor.js?v=0.1.4-panel-patterns-2"></script>
@@ -228,11 +229,37 @@
     .layer[data-layer-kind="emphasis"] { border-left-color:#e6bc4b; background:linear-gradient(90deg,#e6bc4b2a,var(--layer) 34%); }
     .layer[data-layer-kind="frame"] { border-left-color:#7fc8a9; background:linear-gradient(90deg,#7fc8a922,var(--layer) 34%); }
     .layer .name { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-    .canvas-panel { position:relative; min-width:0; background:#111317; }
+    .canvas-panel { position:relative; display:flex; flex-direction:column; min-width:0; min-height:0; background:#111317; }
+    .canvas-workspace { position:relative; flex:1 1 auto; min-height:0; overflow:hidden; }
     #viewport { position:absolute; inset:0; overflow:auto; background-color:#101216; background-image:linear-gradient(45deg,#171a1f 25%,transparent 25%),linear-gradient(-45deg,#171a1f 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#171a1f 75%),linear-gradient(-45deg,transparent 75%,#171a1f 75%); background-size:24px 24px; background-position:0 0,0 12px,12px -12px,-12px 0; }
     #stage { padding:40px; width:max-content; height:max-content; }
     #canvas { display:block; background:transparent; box-shadow:0 2px 20px #000; transform-origin:top left; cursor:default; }
     #canvas.drop-target { outline:2px solid #69b8ff; outline-offset:3px; }
+    .project-image-tray { position:relative; z-index:12; flex:0 0 auto; max-height:158px; border-top:1px solid var(--line); background:var(--panel); overflow:hidden; }
+    .project-image-tray.drop-target { border-top-color:var(--accent); box-shadow:0 -2px 0 var(--accent) inset; }
+    .project-image-tray.collapsed { max-height:34px; }
+    .project-image-tray.collapsed .project-image-tray-list { display:none; }
+    .project-image-tray-heading,.project-image-tray-actions { display:flex; align-items:center; gap:6px; }
+    .project-image-tray-heading { min-height:34px; padding:4px 7px; justify-content:space-between; }
+    .project-image-tray-heading > button { display:flex; align-items:center; gap:6px; flex:1 1 auto; align-self:stretch; border:0; background:transparent; text-align:left; cursor:pointer; }
+    .project-image-tray-heading > button::before { content:"▾"; width:10px; color:var(--muted); }
+    .project-image-tray.collapsed .project-image-tray-heading > button::before { content:"▸"; }
+    .project-image-tray-list { display:flex; align-items:flex-start; gap:6px; min-height:91px; padding:4px 8px 7px; overflow:auto; }
+    .project-image-tray-card { position:relative; display:grid; grid-template-columns:minmax(0,1fr); gap:3px; flex:0 0 84px; width:84px; padding:4px; border:1px solid var(--line); border-radius:5px; background:var(--layer); cursor:pointer; }
+    .project-image-tray-card.selected { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    .project-image-tray-preview { position:relative; width:68px; height:51px; margin:auto; overflow:hidden; border-radius:3px; background:repeating-conic-gradient(#bbb 0 25%,#eee 0 50%) 0/12px 12px; }
+    .project-image-tray-card img { display:block; width:100%; height:100%; object-fit:contain; }
+    .project-image-tray-badge { position:absolute; z-index:2; padding:1px 3px; border-radius:2px; color:#fff; font-size:7px; font-weight:800; line-height:12px; pointer-events:none; }
+    .project-image-tray-badge.selected-badge { top:2px; left:2px; background:#d9485f; }
+    .project-image-tray-badge.used-badge { right:2px; bottom:2px; background:#27875a; }
+    .project-image-tray-accessible { position:absolute !important; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    .project-image-tray-card-actions { display:grid; grid-template-columns:1fr 25px; gap:3px; }
+    .project-image-tray-card button { min-height:24px; padding:2px 4px; font-size:10px; }
+    .project-image-tray-dialog { width:min(480px,calc(100vw - 32px)); padding:16px; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--text); }
+    .project-image-tray-dialog p { white-space:pre-line; }
+    .project-image-tray-dialog > div { display:flex; justify-content:flex-end; gap:7px; }
+    .project-image-tray-dialog .danger { border-color:#a84949; color:#ffd6d6; }
+    .canvas-panel > .comic-image-tray,.canvas-panel > .general-comic-image-tray { display:none !important; }
     .field { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:5px; }
     .field.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
     .field.single { grid-template-columns:1fr; }
@@ -451,16 +478,18 @@
       </div>
     </aside>
     <main class="canvas-panel">
-      <div id="viewport"><div id="stage"><canvas id="canvas"></canvas></div></div>
-      <div id="emptyCanvasState" class="empty-canvas-state" hidden>
-        <div id="emptyCanvasCard" class="empty-canvas-card">
-          <strong>画像をここにドロップ</strong>
-          <p>または</p>
-          <button id="chooseBackgroundImage" type="button" title="ローカル画像を背景として読み込みます">画像ファイルを選択</button>
-          <p>Ctrl+Vでクリップボード画像を貼り付け<br>PNG / JPEG / WebP</p>
+      <div class="canvas-workspace">
+        <div id="viewport"><div id="stage"><canvas id="canvas"></canvas></div></div>
+        <div id="emptyCanvasState" class="empty-canvas-state" hidden>
+          <div id="emptyCanvasCard" class="empty-canvas-card">
+            <strong>画像をここにドロップ</strong>
+            <p>または</p>
+            <button id="chooseBackgroundImage" type="button" title="ローカル画像を背景として読み込みます">画像ファイルを選択</button>
+            <p>Ctrl+Vでクリップボード画像を貼り付け<br>PNG / JPEG / WebP</p>
+          </div>
         </div>
+        <div class="footer">Wheel: zoom　Middle mouse or Space + drag: pan　Drag: move　8 handles: resize　Standard: lock ratio　Shift + corner: free transform　Green handle: rotate</div>
       </div>
-      <div class="footer">Wheel: zoom　Middle mouse or Space + drag: pan　Drag: move　8 handles: resize　Standard: lock ratio　Shift + corner: free transform　Green handle: rotate</div>
     </main>
       <aside class="right">
       <section id="propertiesDock" class="properties-dock floating-panel">
@@ -759,6 +788,7 @@
     const desktopLaunchToken = params.get("token") || "";
     let autoSaveEnabled = params.get("autoSave") !== "0";
     let showEmptyCanvasGuide = params.get("showEmptyCanvasGuide") !== "0";
+    let sharedProjectImages = params.get("sharedProjectImages") !== "0";
     const startupBehavior = ["resume","new"].includes(params.get("startupBehavior")) ? params.get("startupBehavior") : "ask";
     let autoSaveDelay = Math.max(5000, Math.min(3600000, Number(params.get("autoSaveDelay")) || 30000));
     let lastRecoveryCheckpoint=Date.now();
@@ -823,11 +853,20 @@
     const projectSchema=window.SpeechBubbleProjectSchema;
     function normalizedCanvasBackground(value={}){return canvasBackgroundPatterns?.normalize(value)||{color:"#ffffff",transparent:value.transparent===true};}
     const SINGLE_IMAGE_ASSET_PREFIX="single-image:";
-    const singleImageAssets=new Map();
+    const PROJECT_IMAGE_ASSET_PREFIX="project-image:";
+    const singleImageAssets=new Map(),pageImageAssets=new Map();
     let primarySingleImageAssetId="",lastSingleProcessingLayerId="",pendingImageLayerReplacementId="";
     function clearSingleImageAssets(){for(const asset of singleImageAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);singleImageAssets.clear();primarySingleImageAssetId="";lastSingleProcessingLayerId="";}
+    function clearPageImageAssets(){for(const asset of pageImageAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);pageImageAssets.clear();}
     function loadSingleImageElement(url){return new Promise((resolve,reject)=>{const node=new Image();node.decoding="async";node.onload=()=>resolve(node);node.onerror=()=>reject(new Error("画像レイヤーを読み込めませんでした。"));node.src=url;});}
-    async function registerSingleImageAsset(blob,name="image",assetId=""){const id=assetId||`${SINGLE_IMAGE_ASSET_PREFIX}${createUuid()}`,previous=singleImageAssets.get(id);if(previous?.url)URL.revokeObjectURL(previous.url);const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight};singleImageAssets.set(id,asset);return asset;}
+    async function registerPageImageAsset(blob,name="image",assetId="",metadata={}){
+      const id=assetId||`${PROJECT_IMAGE_ASSET_PREFIX}${createUuid()}`,previous=pageImageAssets.get(id);
+      if(previous?.blob===blob){Object.assign(previous,{name:String(name||previous.name||"image").replace(/\.[^.]+$/,""),mime:metadata.mime||blob.type||previous.mime||"image/png",sha256:String(metadata.sha256||previous.sha256||"")});return previous;}
+      if(previous?.url)URL.revokeObjectURL(previous.url);
+      const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:metadata.mime||blob.type||"image/png",blob,url,width:node.naturalWidth,height:node.naturalHeight,sha256:String(metadata.sha256||"")};
+      pageImageAssets.set(id,asset);return asset;
+    }
+    async function registerSingleImageAsset(blob,name="image",assetId=""){const id=assetId||`${SINGLE_IMAGE_ASSET_PREFIX}${createUuid()}`,previous=singleImageAssets.get(id);if(previous?.url)URL.revokeObjectURL(previous.url);const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight};singleImageAssets.set(id,asset);const pageAsset=await registerPageImageAsset(blob,name,id,asset);projectImageTray?.register?.(pageAsset,{workspace:"single",select:false,expand:false,notify:false});return asset;}
     function singleImageAssetFor(item){return item?.type==="image"?singleImageAssets.get(String(item.image_asset_id||"")):null;}
     function selectedSingleImageLayer(){const selected=state.elements.find(item=>item.id===state.selected&&item.type==="image");if(selected)return selected;return[...state.elements].reverse().find(item=>item.type==="image"&&item.visible!==false)||state.elements.find(item=>item.type==="image")||null;}
     function imageLayerScale(item){return Math.max(10,Math.min(800,Math.round(((Number(item?.w)||1)/Math.max(1,Number(item?.base_width)||Number(item?.w)||1))*100)));}
@@ -871,8 +910,28 @@
       document.getElementById("addSingleImageLayerFromLayers").hidden=next!=="single";
       restoreWorkspaceView(source,false);
     }
-    let modeController=null,comicEditor=null,generalComicEditor=null,comicConverter=null,backgroundRemoval=null,comicOverlayExport=false;
+    let modeController=null,comicEditor=null,generalComicEditor=null,projectImageTray=null,comicConverter=null,backgroundRemoval=null,comicOverlayExport=false;
+    let projectImageSyncTimer=0;
     function activeStructuralEditor(){return generalComicEditor?.isActive()?generalComicEditor:comicEditor?.isActive()?comicEditor:null;}
+    function projectTreeImageCount(tree,assetId){if(!tree||typeof tree!=="object")return 0;if(tree.kind!=="split")return tree.image_id===assetId?1:0;return projectTreeImageCount(tree.first,assetId)+projectTreeImageCount(tree.second,assetId);}
+    function projectImageUsage(assetId){const id=String(assetId||"");return{single:(workspaces.single.elements||[]).filter(item=>item?.type==="image"&&String(item.image_asset_id||"")===id).length,comic:projectTreeImageCount(comicEditor?.serialize?.()?.tree,id),comic_layout:projectTreeImageCount(generalComicEditor?.serialize?.()?.tree,id)};}
+    async function projectImageBlob(assetId){const id=String(assetId||"");return pageImageAssets.get(id)?.blob||singleImageAssets.get(id)?.blob||await comicEditor?.projectImageBlob?.(id)||await generalComicEditor?.projectImageBlob?.(id)||null;}
+    function projectImageUrl(assetId){const id=String(assetId||"");return pageImageAssets.get(id)?.url||singleImageAssets.get(id)?.url||comicEditor?.projectImageUrl?.(id)||generalComicEditor?.projectImageUrl?.(id)||"";}
+    async function syncProjectImageTrayFromEditors(){
+      if(!projectImageTray)return;
+      const sync=async(metadata,workspace,getBlob)=>{for(const item of metadata||[]){const id=String(item?.id||"");if(!id||id==="source")continue;let asset=pageImageAssets.get(id);if(!asset){const blob=await getBlob(id);if(!(blob instanceof Blob))continue;asset=await registerPageImageAsset(blob,item.name||"Page Image",id,item);}projectImageTray.register(asset,{workspace,select:false,expand:false,notify:false});}};
+      await sync([...singleImageAssets.values()],"single",async id=>singleImageAssets.get(id)?.blob||null);
+      await sync(comicEditor?.projectImages?.()||[],"comic",id=>comicEditor?.projectImageBlob?.(id));
+      await sync(generalComicEditor?.projectImages?.()||[],"comic_layout",id=>generalComicEditor?.projectImageBlob?.(id));
+      projectImageTray.render();
+    }
+    function scheduleProjectImageTraySync(){clearTimeout(projectImageSyncTimer);projectImageSyncTimer=setTimeout(()=>{projectImageSyncTimer=0;syncProjectImageTrayFromEditors().catch(error=>console.warn("Page Images sync failed",error));},0);}
+    function markProjectImageTrayChanged(){layoutDirty=true;scheduleAutoSave();updateActionState();}
+    async function removeProjectImageUsage(assetId){const usage=projectImageUsage(assetId);if(!usage.single&&!usage.comic&&!usage.comic_layout)return false;pushUndo();const singleElements=(workspaces.single.elements||[]).filter(item=>!(item?.type==="image"&&String(item.image_asset_id||"")===String(assetId)));workspaces.single.elements=singleElements;if(activeWorkspace==="single"){state.elements=singleElements;setSelection([],null);}comicEditor?.removeAssetUsage?.(assetId,{recordUndo:false});generalComicEditor?.removeAssetUsage?.(assetId,{recordUndo:false});captureActiveWorkspace();layoutDirty=true;syncProperties();requestRender({canvas:true,layers:true,preview:true});updateActionState();scheduleAutoSave();return true;}
+    async function removeProjectImageAsset(assetId){const asset=pageImageAssets.get(String(assetId||""));if(asset?.url)URL.revokeObjectURL(asset.url);pageImageAssets.delete(String(assetId||""));}
+    async function importProjectSingleImage(blob,asset,control={}){if(!(blob instanceof Blob)||!asset?.id)return false;const existing=state.elements.find(item=>item.type==="image"&&item.image_asset_id===asset.id);if(existing){setSelection([existing.id],existing.id);syncProperties();requestRender({canvas:true,layers:true});return asset.id;}if(!state.elements.some(item=>item.type==="image"))scaleStateToImageSize(Math.max(1,Number(asset.width)||1024),Math.max(1,Number(asset.height)||1024));const layer=await addSingleImageLayerFromBlob(blob,asset.name||"Page Image",{role:"page-image",assetId:String(asset.id),locked:false});if(control.point&&Number.isFinite(control.point.x)&&Number.isFinite(control.point.y)){layer.x=control.point.x-layer.w/2;layer.y=control.point.y-layer.h/2;captureActiveWorkspace();}layoutDirty=true;scheduleAutoSave();fitView(false);requestRender({canvas:true,layers:true});return String(asset.id);}
+    async function placeProjectImageAsset(asset,blob,control={}){if(!(blob instanceof Blob)||!asset?.id)return false;projectImageTray?.register(asset,{notify:false});if(generalComicEditor?.isActive()){if(!control.point&&!generalComicEditor.selectedPanel?.()){const fallback=generalComicEditor.defaultPanelInsertionTarget?.();if(fallback?.panelId)generalComicEditor.selectPanel?.(fallback.panelId);}return generalComicEditor.importExternalImage?.(blob,asset,{assignToSelectedPanel:true,point:control.point});}if(comicEditor?.isActive())return comicEditor.importExternalImage?.(blob,asset,{assignToSelectedPanel:true,point:control.point});return importProjectSingleImage(blob,asset,control);}
+    function initializeProjectImageTray(){if(projectImageTray||!window.SpeechBubbleProjectImageTray)return projectImageTray;projectImageTray=window.SpeechBubbleProjectImageTray.create({document,host:document.querySelector(".canvas-panel"),workspace:()=>activeWorkspace,english:uiEnglish,usage:projectImageUsage,removeUsage:removeProjectImageUsage,removeAsset:removeProjectImageAsset,addFile:file=>registerPageImageAsset(file,file.name||"Page Image"),getBlob:projectImageBlob,imageUrl:projectImageUrl,place:placeProjectImageAsset,changed:markProjectImageTrayChanged,setStatus:setSaveState});projectImageTray.applySettings({mode:sharedProjectImages?"shared":"separate"},false);return projectImageTray;}
 
     function initializeModeController(){
       if(!["desktop","desktop-file"].includes(hostMode)||modeController||!window.SpeechBubbleEditorModeController)return modeController;
@@ -888,6 +947,7 @@
         switchEditorWorkspace(target);
         comicEditor?.setActive(target==="comic",{switchWorkspace:false,recordUndo:false,fitView:false,notify:false});
         generalComicEditor?.setActive(target==="comic_layout",{switchWorkspace:false,recordUndo:false,fitView:false,notify:false});
+        projectImageTray?.setWorkspace(target);
         if(control.notify!==false&&activeWorkspace===target){layoutDirty=true;scheduleAutoSave();}
         return true;
       };
@@ -899,6 +959,7 @@
       comicEditor?.setActive(activeWorkspace==="comic",{switchWorkspace:false,recordUndo:false,fitView:false,notify:false});
       generalComicEditor?.setActive(activeWorkspace==="comic_layout",{switchWorkspace:false,recordUndo:false,fitView:false,notify:false});
       modeController?.setCurrent(activeWorkspace);
+      projectImageTray?.setWorkspace(activeWorkspace);
       document.documentElement.dataset.editorMode=activeWorkspace;
     }
     async function selectedSingleImageSource(){const layer=selectedSingleImageLayer(),asset=singleImageAssetFor(layer);if(layer&&asset){lastSingleProcessingLayerId=layer.id;return{blob:asset.blob,name:layer.image_name||asset.name,width:asset.width,height:asset.height,layer_id:layer.id,visible:layer.visible!==false};}if(!imageLoaded||!image.naturalWidth)return null;lastSingleProcessingLayerId="";return{blob:await sourceImageBlob(),name:sourceName||"speech_bubble",width:image.naturalWidth,height:image.naturalHeight};}
@@ -939,6 +1000,7 @@
          fitView,
          syncProperties,
          syncActionState:updateActionState,
+         onDocumentChanged:()=>{layoutDirty=true;scheduleAutoSave();updateActionState();scheduleProjectImageTraySync();},
          setStatus:setSaveState,
          switchWorkspace:switchEditorWorkspace,
          syncInsertTargetStatus,
@@ -955,7 +1017,7 @@
         resizeCanvas:(width,height)=>{scaleStateToImageSize(width,height);fitView(false);},
         requestRender,fitView,syncProperties,syncActionState:updateActionState,setStatus:setSaveState,
         switchWorkspace:switchEditorWorkspace,syncInsertTargetStatus,
-        onDocumentChanged:()=>{layoutDirty=true;scheduleAutoSave();updateActionState();},
+        onDocumentChanged:()=>{layoutDirty=true;scheduleAutoSave();updateActionState();scheduleProjectImageTraySync();},
         assignLayerGeneralComicTarget,
         reassignPanelTargets:reassignGeneralComicPanelTargets,
         detachPanelTargetsToPage:detachGeneralComicPanelTargetsToPage,
@@ -1914,6 +1976,7 @@
       state.selection = state.selected ? [state.selected] : [];
       comicEditor?.restore(comicLayout);
       generalComicEditor?.restore(generalComicLayout);
+      if(data.image_trays)projectImageTray?.restoreState?.(data.image_trays);
       syncEditorModeFromWorkspace();
     }
     function selectedItems(){const ids=new Set(state.selection);return state.elements.filter(item=>ids.has(item.id));}
@@ -2438,6 +2501,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       flushPendingEmphasisRegeneration();
       captureActiveWorkspace();
       const payload=projectSchema.build({activeWorkspace,workspaces,comic:comicEditor?.serialize()||null,generalComic:generalComicEditor?.serialize()||null});
+      if(projectImageTray)payload.image_trays=projectImageTray.serialize();
       return JSON.stringify(payload,null,2);
     }
     async function hashImageBlob(blob){
@@ -2649,6 +2713,9 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     window.SpeechBubbleApplyRuntimeSettings=settings=>{
       autoSaveEnabled=settings?.auto_save!==false;
       showEmptyCanvasGuide=settings?.show_empty_canvas_guide!==false;
+      const nextSharedProjectImages=settings?.shared_project_images!==false,sharedModeChanged=nextSharedProjectImages!==sharedProjectImages;
+      sharedProjectImages=nextSharedProjectImages;
+      projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},sharedModeChanged);
       autoSaveDelay=Math.max(5000,Math.min(3600000,(Number(settings?.auto_save_interval_seconds)||30)*1000));
       clearTimeout(autoSaveTimer);autoSaveTimer=null;
       if(autoSaveEnabled&&layoutDirty)scheduleAutoSave();
@@ -2810,6 +2877,9 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function clearDocumentCanvas(){
       clearTimeout(autoSaveTimer);autoSaveTimer=null;dirtyTrackingEnabled=false;
       clearSingleImageAssets();
+      clearPageImageAssets();
+      projectImageTray?.restore?.([],null);
+      projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},false);
       if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
       sourceObjectUrl=null;sourceBlob=null;imageUrl="";imageHash="";imageLoaded=false;
       image.onload=null;image.onerror=null;image.removeAttribute("src");
@@ -3225,6 +3295,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         selection:state.selection,
         comic:comicEditor?.serialize(),
         generalComic:generalComicEditor?.serialize(),
+        imageTrays:projectImageTray?.serialize?.(),
       });
     }
     let paletteSyncApplying=false,paletteSyncTimer=null,lastPaletteSyncSnapshot="";
@@ -3285,6 +3356,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       state.vectorEditId=null;state.vectorAnchorIndex=null;state.vectorAddMode=false;
       comicEditor?.restore(data.comic,{hydrate:false,keepMode:true});
       generalComicEditor?.restore(data.generalComic,{hydrate:false,keepMode:true});
+      projectImageTray?.restoreState?.(data.imageTrays||data.image_trays);
       syncEditorModeFromWorkspace();
       restoreWorkspaceView(workspaces[activeWorkspace],false);
     }
@@ -3359,14 +3431,14 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function imageFileFromTransfer(transfer){return Array.from(transfer?.files||[]).find(isSupportedImageFile)||Array.from(transfer?.items||[]).filter(item=>item.kind==="file").map(item=>item.getAsFile?.()).find(isSupportedImageFile)||null;}
     function transferHasFiles(transfer){return Array.from(transfer?.types||[]).includes("Files")||Array.from(transfer?.items||[]).some(item=>item.kind==="file")||Boolean(transfer?.files?.length);}
     function setBackgroundDropHighlight(active){document.getElementById("emptyCanvasCard")?.classList.toggle("drag-active",active);canvas.classList.toggle("drop-target",active&&imageLoaded);}
-    const backgroundDropSurface=document.querySelector(".canvas-panel");
+    const backgroundDropSurface=document.querySelector(".canvas-workspace");
     backgroundDropSurface.addEventListener("dragenter",event=>{if(!transferHasFiles(event.dataTransfer))return;event.preventDefault();setBackgroundDropHighlight(true);},true);
     backgroundDropSurface.addEventListener("dragover",event=>{if(!transferHasFiles(event.dataTransfer))return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect="copy";setBackgroundDropHighlight(true);},true);
     backgroundDropSurface.addEventListener("dragleave",event=>{if(!backgroundDropSurface.contains(event.relatedTarget))setBackgroundDropHighlight(false);},true);
     backgroundDropSurface.addEventListener("drop",event=>{if(!transferHasFiles(event.dataTransfer))return;event.preventDefault();event.stopPropagation();setBackgroundDropHighlight(false);const files=Array.from(event.dataTransfer?.files||[]).filter(isSupportedImageFile),point=event.target===canvas||canvas.contains(event.target)?imagePoint(event):null;if(generalComicEditor?.isActive()){generalComicEditor.handleImageDrop(event.dataTransfer,point||{x:-1,y:-1});return;}if(comicEditor?.isActive()){comicEditor.importFiles(files,{point});return;}const file=files[0]||imageFileFromTransfer(event.dataTransfer);if(file)requestBackgroundFile(file);else setSaveState("PNG / JPEG / WebP画像をドロップしてください","error");},true);
-    canvas.addEventListener("dragover",event=>{if(imageFileFromTransfer(event.dataTransfer))return;const comicImage=event.dataTransfer.types.includes(window.SpeechBubbleComicEditor?.IMAGE_DRAG_TYPE||"application/x-speech-bubble-comic-image"),generalImage=event.dataTransfer.types.includes(window.SpeechBubbleGeneralComicEditor?.IMAGE_DRAG_TYPE||"application/x-speech-bubble-general-comic-image");if(!comicImage&&!generalImage&&!event.dataTransfer.types.includes(EDITOR_DRAG_TYPE))return;event.preventDefault();event.dataTransfer.dropEffect="copy";canvas.classList.add("drop-target");});
+    canvas.addEventListener("dragover",event=>{if(imageFileFromTransfer(event.dataTransfer))return;const projectImage=event.dataTransfer.types.includes(window.SpeechBubbleProjectImageTray?.DRAG_TYPE||"application/x-speech-bubble-project-image"),comicImage=event.dataTransfer.types.includes(window.SpeechBubbleComicEditor?.IMAGE_DRAG_TYPE||"application/x-speech-bubble-comic-image"),generalImage=event.dataTransfer.types.includes(window.SpeechBubbleGeneralComicEditor?.IMAGE_DRAG_TYPE||"application/x-speech-bubble-general-comic-image");if(!projectImage&&!comicImage&&!generalImage&&!event.dataTransfer.types.includes(EDITOR_DRAG_TYPE))return;event.preventDefault();event.dataTransfer.dropEffect="copy";canvas.classList.add("drop-target");});
     canvas.addEventListener("dragleave",event=>{if(!canvas.contains(event.relatedTarget))canvas.classList.remove("drop-target");});
-    canvas.addEventListener("drop",event=>{if(imageFileFromTransfer(event.dataTransfer))return;canvas.classList.remove("drop-target");const point=imagePoint(event);if(generalComicEditor?.isActive()&&generalComicEditor.handleImageDrop(event.dataTransfer,point)){event.preventDefault();return;}if(comicEditor?.handleImageDrop(event.dataTransfer,point)){event.preventDefault();return;}const raw=event.dataTransfer.getData(EDITOR_DRAG_TYPE);if(!raw)return;event.preventDefault();let payload;try{payload=JSON.parse(raw);}catch{return;}if(payload.kind==="bubble")insertPreset(payload.id,point);else if(payload.kind==="user-bubble")insertUserPreset(payload.id,point);else if(payload.kind==="sfx")insertSfx(payload.id,point);else if(payload.kind==="frame")insertFrame(payload.id,point);else if(payload.kind==="emphasis-lines")insertEmphasisLines(payload.id,point);});
+    canvas.addEventListener("drop",event=>{if(imageFileFromTransfer(event.dataTransfer))return;canvas.classList.remove("drop-target");const point=imagePoint(event),projectImageId=event.dataTransfer.getData(window.SpeechBubbleProjectImageTray?.DRAG_TYPE||"application/x-speech-bubble-project-image");if(projectImageId&&projectImageTray){event.preventDefault();projectImageTray.place(projectImageId,{point});return;}if(generalComicEditor?.isActive()&&generalComicEditor.handleImageDrop(event.dataTransfer,point)){event.preventDefault();return;}if(comicEditor?.handleImageDrop(event.dataTransfer,point)){event.preventDefault();return;}const raw=event.dataTransfer.getData(EDITOR_DRAG_TYPE);if(!raw)return;event.preventDefault();let payload;try{payload=JSON.parse(raw);}catch{return;}if(payload.kind==="bubble")insertPreset(payload.id,point);else if(payload.kind==="user-bubble")insertUserPreset(payload.id,point);else if(payload.kind==="sfx")insertSfx(payload.id,point);else if(payload.kind==="frame")insertFrame(payload.id,point);else if(payload.kind==="emphasis-lines")insertEmphasisLines(payload.id,point);});
     window.addEventListener("dragend",()=>setBackgroundDropHighlight(false));
     document.addEventListener("paste",event=>{const editing=["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName);if(editing)return;if(layerClipboard?.length){event.preventDefault();pasteLayers();return;}const item=Array.from(event.clipboardData?.items||[]).find(entry=>entry.kind==="file"&&String(entry.type||"").startsWith("image/"));const file=item?.getAsFile?.();if(file){event.preventDefault();if(generalComicEditor?.isActive())generalComicEditor.importFiles([file]);else if(comicEditor?.isActive())comicEditor.importFiles([file]);else requestBackgroundFile(file);}});
      function addTextLayer(){
@@ -3596,16 +3668,25 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     const DESKTOP_SINGLE_BACKGROUND_ID="__single_background__";
     async function desktopSnapshot(){
-      const images=[...(await comicEditor?.exportProjectImages?.()||[]),...(await generalComicEditor?.exportProjectImages?.()||[])];
-      const usedSingleAssets=new Set(workspaces.single.elements.filter(item=>item.type==="image").map(item=>item.image_asset_id));for(const asset of singleImageAssets.values())if(usedSingleAssets.has(asset.id))images.push({id:asset.id,name:asset.name||"single-image",mime:asset.mime||asset.blob.type||"image/png",data_url:await blobToDataUrl(asset.blob)});
-      if(!singleImageAssets.size&&imageLoaded&&(sourceBlob||imageUrl)){const blob=await sourceImageBlob();images.push({id:DESKTOP_SINGLE_BACKGROUND_ID,name:sourceName||"single-image",mime:blob.type||"image/png",data_url:await blobToDataUrl(blob)});}
-      return{title:sourceName||"speech-bubble-project",project_path:currentProjectPath,layout:JSON.parse(currentLayoutJson()),images};
+      await syncProjectImageTrayFromEditors();
+      const byId=new Map();
+      const add=record=>{const id=String(record?.id||"");if(id&&!byId.has(id))byId.set(id,record);};
+      for(const record of await comicEditor?.exportProjectImages?.()||[])add(record);
+      for(const record of await generalComicEditor?.exportProjectImages?.()||[])add(record);
+      for(const asset of singleImageAssets.values())add({id:asset.id,name:asset.name||"single-image",mime:asset.mime||asset.blob.type||"image/png",data_url:await blobToDataUrl(asset.blob)});
+      for(const asset of pageImageAssets.values())add({id:asset.id,name:asset.name||"page-image",mime:asset.mime||asset.blob.type||"image/png",data_url:await blobToDataUrl(asset.blob)});
+      if(!singleImageAssets.size&&imageLoaded&&(sourceBlob||imageUrl)){const blob=await sourceImageBlob();add({id:DESKTOP_SINGLE_BACKGROUND_ID,name:sourceName||"single-image",mime:blob.type||"image/png",data_url:await blobToDataUrl(blob)});}
+      return{title:sourceName||"speech-bubble-project",project_path:currentProjectPath,layout:JSON.parse(currentLayoutJson()),images:[...byId.values()]};
     }
     async function loadDesktopPayload(payload,{recovery=false}={}){
-      const prepared=projectSchema.preflightPayload(payload),records=await Promise.all(prepared.images.map(async record=>{const response=await fetch(record.data_url);if(!response.ok)throw new Error(`Image load failed: ${record.id}`);const blob=await response.blob();if(!String(blob.type||"").startsWith("image/"))throw new Error(`Image data is invalid: ${record.id}`);const url=URL.createObjectURL(blob);try{await loadSingleImageElement(url);}finally{URL.revokeObjectURL(url);}return{...record,blob};})),singleRecords=records.filter(record=>record.id===DESKTOP_SINGLE_BACKGROUND_ID||record.id.startsWith(SINGLE_IMAGE_ASSET_PREFIX)),generalRecords=records.filter(record=>record.id.startsWith(generalComicEditor?.IMAGE_PREFIX||"general-comic-image:")),comicRecords=records.filter(record=>!singleRecords.includes(record)&&!generalRecords.includes(record)),savedSingleElements=prepared.layout.workspaces.single.elements||prepared.layout.elements||[],preferredId=savedSingleElements.find(item=>item?.type==="image"&&item.source_role==="original")?.image_asset_id||savedSingleElements.find(item=>item?.type==="image")?.image_asset_id||singleRecords[0]?.id;
+      const prepared=projectSchema.preflightPayload(payload),records=await Promise.all(prepared.images.map(async record=>{const response=await fetch(record.data_url);if(!response.ok)throw new Error(`Image load failed: ${record.id}`);const blob=await response.blob();if(!String(blob.type||"").startsWith("image/"))throw new Error(`Image data is invalid: ${record.id}`);const url=URL.createObjectURL(blob);try{await loadSingleImageElement(url);}finally{URL.revokeObjectURL(url);}return{...record,blob};}));
+      const savedSingleElements=prepared.layout.workspaces?.single?.elements||prepared.layout.elements||[],singleIds=new Set(savedSingleElements.filter(item=>item?.type==="image"&&item.image_asset_id).map(item=>String(item.image_asset_id))),comicIds=new Set((prepared.layout.comic?.images||[]).map(item=>String(item?.id||"")).filter(Boolean)),generalIds=new Set((prepared.layout.general_comic?.images||[]).map(item=>String(item?.id||"")).filter(Boolean));
+      const singleRecords=records.filter(record=>record.id===DESKTOP_SINGLE_BACKGROUND_ID||singleIds.has(String(record.id))||(!singleIds.size&&String(record.id).startsWith(SINGLE_IMAGE_ASSET_PREFIX))),comicRecords=records.filter(record=>comicIds.has(String(record.id))||(!comicIds.size&&String(record.id).startsWith("comic-image:"))),generalRecords=records.filter(record=>generalIds.has(String(record.id))||(!generalIds.size&&String(record.id).startsWith(generalComicEditor?.IMAGE_PREFIX||"general-comic-image:"))),preferredId=savedSingleElements.find(item=>item?.type==="image"&&item.source_role==="original")?.image_asset_id||savedSingleElements.find(item=>item?.type==="image")?.image_asset_id||singleRecords[0]?.id;
       const nextId=`standalone:${createUuid()}`;setStandaloneContext(nextId);clearDocumentCanvas();sourceName=String(prepared.manifest?.title||"speech-bubble-project");currentProjectPath=String(prepared.path||prepared.manifest?.project_path||"");dirtyTrackingEnabled=false;
+      for(const record of records)if(record.id!==DESKTOP_SINGLE_BACKGROUND_ID)await registerPageImageAsset(record.blob,record.name||"Page Image",record.id,record);
       for(const record of singleRecords){const assetId=record.id===DESKTOP_SINGLE_BACKGROUND_ID?`${SINGLE_IMAGE_ASSET_PREFIX}legacy-original`:record.id;if(record.id===preferredId||(!imageLoaded&&record===singleRecords[0]))await displayImageBlob(record.blob,{name:record.name||sourceName,assetId});else await registerSingleImageAsset(record.blob,record.name||"Image",assetId);}
       loadState(JSON.stringify(prepared.layout),{strict:true});if(activeWorkspace==="single")ensurePrimarySingleImageLayer();await comicEditor?.importProjectImages?.(comicRecords.map(({blob,...record})=>record));await generalComicEditor?.importProjectImages?.(generalRecords.map(({blob,...record})=>record));
+      const trayRecords=[...pageImageAssets.values()].map(asset=>({id:asset.id,name:asset.name,mime:asset.mime,width:asset.width,height:asset.height,sha256:asset.sha256||""}));projectImageTray?.restore?.(trayRecords,prepared.layout.image_trays);projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},false);projectImageTray?.setWorkspace?.(activeWorkspace);await syncProjectImageTrayFromEditors();
       lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=!recovery;layoutDirty=recovery;state.undo=[];state.redo=[];dirtyTrackingEnabled=true;
       restoreWorkspaceView(workspaces[activeWorkspace],false);syncProperties();requestRender({canvas:true,layers:true,preview:false});updateActionState();
     }
@@ -3637,6 +3718,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       initializeComicEditor();
       initializeGeneralComicEditor();
       registerEditorModes();
+      initializeProjectImageTray();
+      window.addEventListener("speech-bubble:language-change",()=>projectImageTray?.refreshLanguage?.());
       initializeComicConverter();
       initializeBackgroundRemoval();
       initializePresetUI();initializeSfxSwatches();initializeCompactColorSwatches();initializeCanvasBackgroundSwatches();refreshQuickSfx();refreshQuickFrames();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockFloating();initializeFontBrowserDrag();enhanceNumericInputs();initializeUserAssetBroadcast();loadUserPresets();

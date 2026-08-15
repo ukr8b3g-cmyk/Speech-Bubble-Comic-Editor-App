@@ -371,7 +371,60 @@
     }
     function handleImageDrop(transfer, point) { if (!active) return false; const files = [...(transfer?.files || [])].filter(supportedImage); if (files.length) { const panel = core.panelAtPoint(layout(), point); importFiles(files).then((ids) => { if (panel && ids[0]) assignImage(panel.id, ids[0]); }); return true; } const imageId = transfer?.getData?.(IMAGE_DRAG_TYPE); if (!imageId) return false; const panel = core.panelAtPoint(layout(), point); if (!panel) { options.setStatus?.(tr("画像はコマ内へドロップしてください。", "Drop the image inside a panel."), "error"); return true; } assignImage(panel.id, imageId); return true; }
     async function exportProjectImages() { const records = []; for (const metadata of comic.images) { const blob = runtimeBlobs.get(metadata.id) || await loadImageBlob(documentId(), metadata.id); if (!blob) throw new Error(`Project image blob is missing: ${metadata.name || metadata.id}`); records.push({ id: metadata.id, name: metadata.name, mime: metadata.mime || blob.type || "image/png", data_url: await blobDataUrl(blob) }); } return records; }
-    async function importProjectImages(records) { for (const record of Array.isArray(records) ? records : []) { if (!String(record?.id || "").startsWith(IMAGE_PREFIX) || !String(record.data_url || "").startsWith("data:image/")) continue; const blob = await fetch(record.data_url).then((response) => response.blob()); let metadata = comic.images.find((item) => item.id === record.id); if (!metadata) { metadata = { id: String(record.id), name: String(record.name || "project-image"), mime: record.mime || blob.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" }; comic.images.push(metadata); } await attachBlob(metadata, blob); await storeImageBlob(documentId(), metadata, blob); } renderTray(); requestRender({ canvas: true, layers: true }); }
+    async function importProjectImages(records) { for (const record of Array.isArray(records) ? records : []) { if (!record?.id || !String(record.data_url || "").startsWith("data:image/")) continue; const blob = await fetch(record.data_url).then((response) => response.blob()); let metadata = comic.images.find((item) => item.id === record.id); if (!metadata) { metadata = { id: String(record.id), name: String(record.name || "project-image"), mime: record.mime || blob.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" }; comic.images.push(metadata); } await attachBlob(metadata, blob); await storeImageBlob(documentId(), metadata, blob); } renderTray(); requestRender({ canvas: true, layers: true }); }
+
+    async function importExternalImage(blob, asset, control = {}) {
+      if (!(blob instanceof Blob) || !asset?.id) return "";
+      const metadata = { id: String(asset.id), name: String(asset.name || "project-image").slice(0, 260), mime: asset.mime || blob.type || "image/png", width: Math.max(1, Number(asset.width) || 1), height: Math.max(1, Number(asset.height) || 1), sha256: String(asset.sha256 || ""), source: "project-image" };
+      options.pushUndo?.();
+      let existing = comic.images.find((item) => item.id === metadata.id);
+      if (!existing) { existing = metadata; comic.images.push(existing); } else Object.assign(existing, metadata);
+      await attachBlob(existing, blob);
+      await storeImageBlob(documentId(), existing, blob);
+      selectedTrayImageId = existing.id;
+      const dropped = control.point ? core.panelAtPoint(layout(), control.point)?.node : null;
+      const target = dropped || (control.assignToSelectedPanel ? selectedPanel() : null);
+      if (target && panelEditable(target)) {
+        target.image_id = existing.id;
+        target.image_scale = 1;
+        target.image_offset_x = 0;
+        target.image_offset_y = 0;
+        target.image_visible = true;
+        selectedImagePanelIds.clear();
+        selectedImagePanelIds.add(target.id);
+        selection = { kind: "image", id: target.id };
+        lastPanelId = target.id;
+      }
+      used = true;
+      renderTray();
+      changed();
+      syncUi();
+      return existing.id;
+    }
+
+    function removeAssetUsage(imageId, control = {}) {
+      const id = String(imageId || "");
+      if (!id) return false;
+      const usedPanels = core.collectPanels(comic.tree).filter((panel) => panel.image_id === id);
+      const hasMetadata = comic.images.some((item) => item.id === id);
+      if (!usedPanels.length && !hasMetadata) return false;
+      if (control.recordUndo !== false) options.pushUndo?.();
+      usedPanels.forEach((panel) => { panel.image_id = null; selectedImagePanelIds.delete(panel.id); });
+      comic.images = comic.images.filter((item) => item.id !== id);
+      const runtime = runtimeImages.get(id);
+      const url = runtime?.dataset?.generalComicObjectUrl;
+      if (url) { URL.revokeObjectURL(url); objectUrls.delete(url); }
+      runtimeImages.delete(id); runtimeBlobs.delete(id);
+      if (selectedTrayImageId === id) selectedTrayImageId = "";
+      if (selection.kind === "image" && !core.findNode(comic.tree, selection.id)?.image_id) selection = { kind: "panel", id: selection.id };
+      changed();
+      syncUi();
+      return true;
+    }
+
+    function projectImages() { return comic.images.map((item) => ({ ...item })); }
+    function projectImageUrl(imageId) { return runtimeImages.get(String(imageId || ""))?.src || ""; }
+    async function projectImageBlob(imageId) { const id = String(imageId || ""); return id ? (runtimeBlobs.get(id) || await loadImageBlob(documentId(), id)) : null; }
 
     function imageGeometry(rect, image, panel) { const fit = panel.fit === "contain" ? Math.min : Math.max, base = fit(rect.w / image.naturalWidth, rect.h / image.naturalHeight), scale = base * panel.image_scale, w = image.naturalWidth * scale, h = image.naturalHeight * scale; return { x: rect.x + (rect.w - w) / 2 + panel.image_offset_x, y: rect.y + (rect.h - h) / 2 + panel.image_offset_y, w, h }; }
     function tracePolygon(target, polygon) { if (!polygon?.length) return false; target.beginPath(); target.moveTo(polygon[0].x, polygon[0].y); for (const point of polygon.slice(1)) target.lineTo(point.x, point.y); target.closePath(); return true; }
@@ -573,7 +626,7 @@
 
     installUi(); updateLanguage(); syncUi();
     root.addEventListener("speech-bubble:language-change", () => { updateLanguage(); syncUi(); });
-    return { IMAGE_DRAG_TYPE, IMAGE_PREFIX, isActive: () => active, isEditing: () => active && comic.created, hasPage: () => comic.created, activate, deactivate, setActive, createPage, serialize, restore, state: () => comic, layout, selection: () => ({ ...selection }), selectPage, selectPanel, selectPanelImage, selectDivider, selectedPanel, selectedDivider, selectedImagePanels, applyTemplate, splitSelected, mergeSelectedDivider, handlePointerDown, handlePointerMove, pointerCursorAt, handlePointerEnd, handleWheel, handleImageDrop, importFiles, getConversionSources, addConvertedImage, exportProjectImages, importProjectImages, removeTrayImage, drawUnderlay, drawOverlay, panelShape, panelContentRect: panelRect, panelInsertionTarget, selectedInsertionTarget, defaultPanelInsertionTarget, insertionTargetAt, elementTargetOptions, elementTargetValue, assignElementTarget, shouldSkipPanelScopedItem, assetClipRect, emphasisClipRect, renderLayers, syncProperties: syncUi, refreshLanguage: syncUi, clearSelection, scale, dispose };
+    return { IMAGE_DRAG_TYPE, IMAGE_PREFIX, isActive: () => active, isEditing: () => active && comic.created, hasPage: () => comic.created, activate, deactivate, setActive, createPage, serialize, restore, state: () => comic, layout, selection: () => ({ ...selection }), selectPage, selectPanel, selectPanelImage, selectDivider, selectedPanel, selectedDivider, selectedImagePanels, applyTemplate, splitSelected, mergeSelectedDivider, handlePointerDown, handlePointerMove, pointerCursorAt, handlePointerEnd, handleWheel, handleImageDrop, importFiles, importExternalImage, removeAssetUsage, projectImages, projectImageUrl, projectImageBlob, getConversionSources, addConvertedImage, exportProjectImages, importProjectImages, removeTrayImage, drawUnderlay, drawOverlay, panelShape, panelContentRect: panelRect, panelInsertionTarget, selectedInsertionTarget, defaultPanelInsertionTarget, insertionTargetAt, elementTargetOptions, elementTargetValue, assignElementTarget, shouldSkipPanelScopedItem, assetClipRect, emphasisClipRect, renderLayers, syncProperties: syncUi, refreshLanguage: syncUi, clearSelection, scale, dispose };
   }
   root.SpeechBubbleGeneralComicEditor = Object.freeze({ create, IMAGE_DRAG_TYPE, IMAGE_PREFIX });
 })(typeof globalThis !== "undefined" ? globalThis : this);

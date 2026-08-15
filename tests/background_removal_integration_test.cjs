@@ -12,7 +12,7 @@ const shell = fs.readFileSync("web/desktop/desktop-shell.js", "utf8");
 const settingsStore = fs.readFileSync("desktop_app/settings_store.py", "utf8");
 const server = fs.readFileSync("desktop_app/server.py", "utf8");
 const service = fs.readFileSync("desktop_app/background_removal.py", "utf8");
-const spec = fs.readFileSync("SpeechBubble4komaEditor.spec", "utf8");
+const spec = fs.readFileSync("SpeechBubbleComicEditorApp.spec", "utf8");
 const requirements = fs.readFileSync("requirements-desktop.txt", "utf8");
 
 for (const asset of ["background-removal.css", "background-removal-selection.js", "background-removal-edge.js", "background-removal.js"]) assert.match(html, new RegExp(asset.replace(".", "\\.")));

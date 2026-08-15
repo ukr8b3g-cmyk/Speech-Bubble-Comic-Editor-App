@@ -2,7 +2,7 @@
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 # Speech Bubble Comic Editor App
 
-> **Migration status:** Phase 1 baseline. This repository starts from Speech Bubble 4koma Editor v0.1.8 / commit `af7f79d896823f39f19fa936602317e39164a827`. Forge Neo 0.7.x editing features will be integrated in later phases.
+> **Migration status:** Phase 2 in progress. The standalone v0.1.8 baseline now includes the Forge Neo 0.7.10-style shared Page Images tray and the equivalent Desktop sharing setting. Crop/alignment and Quick Retouch are scheduled for later phases.
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 

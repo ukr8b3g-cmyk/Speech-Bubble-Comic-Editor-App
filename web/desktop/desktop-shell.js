@@ -70,6 +70,7 @@
             </label>
           </div>
           <label class="desktop-check desktop-empty-guide-check"><input data-desktop-setting="show_empty_canvas_guide" type="checkbox"><span>画像未読込時に「画像をドロップ」を表示</span></label>
+          <label class="desktop-check desktop-empty-guide-check"><input data-desktop-setting="shared_project_images" type="checkbox"><span>ページ画像を3モードで共有</span></label>
         </details>
         <details open>
           <summary>Export</summary>
@@ -983,6 +984,7 @@
     ["ライト", "Light"],
     ["言語", "Language"],
     ["画像未読込時に「画像をドロップ」を表示", "Show ‘Drop an image here’ when no image is loaded"],
+    ["ページ画像を3モードで共有", "Share Page Images across all three modes"],
     ["出力フォルダー", "Output folder"],
     ["参照…", "Browse…"],
     ["指定フォルダーへ自動保存する", "Save directly to the selected folder"],

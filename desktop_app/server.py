@@ -63,7 +63,8 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
                     int(configured.get("auto_save_interval_seconds", 30)) * 1000
                 ),
                 "startupBehavior": configured.get("startup_behavior", "ask"),
-                "showEmptyCanvasGuide": "1" if configured.get("show_empty_canvas_guide", True) else "0",
+                "showEmptyCanvasGuide": "1" if configured.get("show_empty_canvas_guide", False) else "0",
+                "sharedProjectImages": "1" if configured.get("shared_project_images", True) else "0",
                 "theme": configured.get("theme", "system"),
                 "language": configured.get("language", "auto"),
             }

@@ -1731,6 +1731,80 @@
       options.requestRender({ canvas: true, layers: true });
     }
 
+    async function importExternalImage(blob, asset, control = {}) {
+      if (!(blob instanceof Blob) || !asset?.id) return "";
+      const metadata = {
+        id: String(asset.id),
+        name: String(asset.name || "project-image").slice(0, 260),
+        mime: String(asset.mime || blob.type || "image/png"),
+        width: Math.max(1, Number(asset.width) || 1),
+        height: Math.max(1, Number(asset.height) || 1),
+        sha256: String(asset.sha256 || "") || await sha256(blob),
+        source: "project-image",
+      };
+      options.pushUndo?.();
+      let existing = comic.images.find((item) => item.id === metadata.id);
+      if (!existing) {
+        existing = metadata;
+        comic.images.push(existing);
+      } else {
+        Object.assign(existing, metadata);
+      }
+      await attachBlob(existing, blob);
+      await storeImageBlob(documentId(), existing, blob);
+      selectedTrayImageId = existing.id;
+      const dropped = control.point ? core.panelAt(layout(), control.point)?.node : null;
+      const target = dropped || (control.assignToSelectedPanel ? selectedPanel() : null);
+      if (target && panelEditable(target)) {
+        target.image_id = existing.id;
+        target.image_scale = 1;
+        target.image_offset_x = 0;
+        target.image_offset_y = 0;
+        target.image_visible = true;
+        setPanelImageSelection([target.id], target.id);
+      }
+      used = true;
+      renderTray();
+      syncTrayViewport();
+      changed();
+      updateUi();
+      return existing.id;
+    }
+
+    function removeAssetUsage(imageId, control = {}) {
+      const id = String(imageId || "");
+      if (!id || id === "source") return false;
+      const usedPanels = layout().panels.map((item) => item.node).filter((panel) => panel.image_id === id);
+      const hasMetadata = comic.images.some((item) => item.id === id);
+      if (!usedPanels.length && !hasMetadata) return false;
+      if (control.recordUndo !== false) options.pushUndo?.();
+      for (const panel of usedPanels) {
+        panel.image_id = null;
+        selectedPanelImageIds.delete(panel.id);
+      }
+      comic.images = comic.images.filter((item) => item.id !== id);
+      releaseRuntimeImage(id);
+      if (selectedTrayImageId === id) selectedTrayImageId = "";
+      if (selectedTarget === "image" && !selectedPanel()?.image_id) selectedTarget = selectedPanelId ? "panel" : "page";
+      changed();
+      updateUi();
+      return true;
+    }
+
+    function projectImages() {
+      return comic.images.filter((item) => item.id !== "source").map((item) => ({ ...item }));
+    }
+
+    function projectImageUrl(imageId) {
+      return runtimeImages.get(String(imageId || ""))?.src || "";
+    }
+
+    async function projectImageBlob(imageId) {
+      const id = String(imageId || "");
+      if (!id || id === "source") return null;
+      return loadImageBlob(documentId(), id);
+    }
+
     function renderTray() {
       if (!elements.trayList) return;
       ensureSourceMetadata();
@@ -2511,6 +2585,7 @@
 
     function changed() {
       used = true;
+      options.onDocumentChanged?.();
       options.requestRender({ canvas: true, layers: true, preview: true });
     }
 
@@ -2594,6 +2669,11 @@
       isActive: () => comic.enabled,
       isEditing: () => comic.enabled && Boolean(selectedTarget),
       importFiles,
+      importExternalImage,
+      removeAssetUsage,
+      projectImages,
+      projectImageUrl,
+      projectImageBlob,
       addConvertedImage,
       getConversionSources,
       storageStatus,
