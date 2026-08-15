@@ -1,0 +1,121 @@
+name: Retry v0.1.8 README refresh
+
+on:
+  push:
+    branches: [release-readme-v018-20260816]
+    paths:
+      - .github/workflows/publish-v018-readme-retry.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view v0.1.8 --repo ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App >/dev/null
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "15af1ef93e0d57ed0d07f8a68285d135a6150995"
+
+      - name: Refresh README
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("README.md")
+          s = p.read_text(encoding="utf-8")
+          s = re.sub(r'\n> \*\*Migration status:\*\*[^\n]*\n', '\n', s, count=1)
+
+          def replace_section(text, start, end, body):
+              pattern = re.compile(rf'{re.escape(start)}\n.*?(?=\n{re.escape(end)}\n)', re.S)
+              if not pattern.search(text):
+                  raise SystemExit(f"README section not found: {start} -> {end}")
+              replacement = start + "\n\n" + body.rstrip() + "\n"
+              return pattern.sub(lambda _match: replacement, text, count=1)
+
+          s = replace_section(s, "## 開発経緯", "## 配布状況", """
+          このリポジトリは [Speech Bubble 4koma Editor](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor) の後継となるWindows向けスタンドアロン版です。
+
+          ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) と、Forge Neo向け [Speech-Bubble-Comic-Editor-for-Forge-Neo](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo) で発展した編集機能を、Windows / pywebviewアプリとして統合しています。Forge WebUI固有の接続部分は持ち込まず、ローカルアプリ向けのプロジェクト保存、復元、画像処理、システムフォント連携を備えています。
+          """)
+
+          s = replace_section(s, "## 配布状況", "## 起動", """
+          **Windows版 v0.1.8 を公開しています。**
+
+          - [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
+          - [v0.1.8 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v0.1.8)
+          - [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SHA256SUMS.txt)
+
+          インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
+          """)
+
+          s = replace_section(s, "## 起動", "### EXE版とHTML直接表示の違い", """
+          **通常はインストーラー版を使用してください。**
+
+          - インストーラー: [SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
+          - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
+          - ソース版の初回起動: `setup_and_start.cmd`
+          - ソース版の2回目以降: `start.cmd`
+
+          インストーラーを実行すると必要なファイル一式をユーザー領域へ配置し、スタートメニューへ登録します。必要に応じてデスクトップショートカットも作成できます。
+
+          上部の「新規プロジェクト」または`Ctrl+N`で新しい編集を開始できます。アプリ終了はWindows標準の右上「×」または`Alt+F4`を使用し、未保存の変更がある場合は保存確認を表示します。
+          """)
+
+          s = replace_section(s, "### EXE版とHTML直接表示の違い", "## 主な機能", """
+          EXE版または`start.cmd`からの起動が通常の利用方法です。システムフォント、Settings、`.sbeproj`、指定フォルダーへの画像書き出し、ローカルAI背景削除などDesktop APIを使う機能を利用できます。
+
+          `web\\speech-bubble-editor.html`の直接表示はUI確認・互換確認用です。Desktop APIへ接続しないため、EXE版と同等の動作は保証しません。
+          """)
+
+          s = replace_section(s, "## 主な機能", "## 3つの編集モード", """
+          - **3つの編集モード**: 一枚画像、縦4コマ漫画、自由なコマ割りのコミックを切り替えて編集
+          - **Page Images**: 3モードで共有できる画像トレイ。ドラッグ配置、使用数管理、プロジェクト保存に対応
+          - **Quick Retouch**: Brush / Eraser / Eyedropper、矩形・投げ縄・Magic Wand・Color Range、Quick Mask、Hue / Saturation、Brightness / Contrast、Tone Curve、Undo / Redo、比較表示
+          - **非破壊画像編集**: Crop、回転、反転、不透明度、Cover / Contain、拡大率、オフセットを保持したまま再編集
+          - **複数選択**: 移動・拡大縮小・回転、左右上下中央への整列、水平・垂直の均等配置
+          - **複数Text一括編集**: フォント、サイズ、文字色、アウトライン、Tracking、Bold / Italicなどをまとめて変更
+          - **背景削除**: `isnet-anime`を使うローカルAI背景削除、マスク編集、フリンジ・マット・エッジカラー補正
+          - **コミック変換**: 画像を白黒漫画調へ変換し、一枚画像では新規レイヤー、4コマ／コミックではPage Imagesへ追加
+          - **漫画素材**: Speech Bubbles、Text、SFX、Stamps、Frames、Emphasis Lines。各Drawerの幅やSFX/Stampセクション状態を記憶
+          - **文字**: Windowsのシステムフォント、日本語フォント、縦書き、フォントお気に入り・履歴
+          - **コミック編集**: コマ分割・結合、斜め境界、コマ間隔、コマ背景、画像のCrop / Rotation、ページ／コマへの素材配置
+          - **プロジェクト**: `.sbeproj`保存・再読込、自動保存、復元、3ワークスペースの編集状態をまとめて保持
+          - **書き出し**: PNG / JPEG / WebP、透明Overlay PNG、Canvas表示に基づく画像書き出し
+          - **UI**: 日本語／英語、Light / Dark、Properties / Layersのフローティングパネル、素材Drawer状態の保存
+          """)
+
+          p.write_text(s, encoding="utf-8", newline="\n")
+          PY
+
+          grep -q "releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe" README.md
+          ! grep -q "Migration status" README.md
+          ! grep -q "Phase 4で追加した移植機能" README.md
+          ! grep -q "Phase 3で追加した移植機能" README.md
+          git diff --check
+
+      - name: Commit and push README
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/publish-v018-readme.yml .github/workflows/publish-v018-readme-retry.yml
+          git add README.md .github/workflows/publish-v018-readme.yml .github/workflows/publish-v018-readme-retry.yml
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update README for v0.1.8 release"
+          git push origin HEAD:release-readme-v018-20260816
