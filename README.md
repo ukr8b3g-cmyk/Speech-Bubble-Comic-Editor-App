@@ -13,13 +13,11 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 ## 開発経緯
 
-
 このリポジトリは [Speech Bubble 4koma Editor](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor) の後継となるWindows向けスタンドアロン版です。
 
 ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) と、Forge Neo向け [Speech-Bubble-Comic-Editor-for-Forge-Neo](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo) で発展した編集機能を、Windows / pywebviewアプリとして統合しています。Forge WebUI固有の接続部分は持ち込まず、ローカルアプリ向けのプロジェクト保存、復元、画像処理、システムフォント連携を備えています。
 
 ## 配布状況
-
 
 **Windows版 v0.1.8 を公開しています。**
 
@@ -30,7 +28,6 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
 
 ## 起動
-
 
 **通常はインストーラー版を使用してください。**
 
@@ -45,13 +42,11 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ### EXE版とHTML直接表示の違い
 
-
 EXE版または`start.cmd`からの起動が通常の利用方法です。システムフォント、Settings、`.sbeproj`、指定フォルダーへの画像書き出し、ローカルAI背景削除などDesktop APIを使う機能を利用できます。
 
 `web\speech-bubble-editor.html`の直接表示はUI確認・互換確認用です。Desktop APIへ接続しないため、EXE版と同等の動作は保証しません。
 
 ## 主な機能
-
 
 - **3つの編集モード**: 一枚画像、縦4コマ漫画、自由なコマ割りのコミックを切り替えて編集
 - **Page Images**: 3モードで共有できる画像トレイ。ドラッグ配置、使用数管理、プロジェクト保存に対応
@@ -76,7 +71,7 @@ EXE版または`start.cmd`からの起動が通常の利用方法です。シス
 
 ### 一枚画像
 
-キャンバス背景の上へ複数の画像レイヤーとSpeech Bubbles、Text、SFX、Stamps、Frames、Emphasis Linesを配置するモードです。画像レイヤーは表示、ロック、並び替え、複製、削除に対応し、倍率、位置、回転、不透明度を個別に調整できます。キャンバス背景は任意色または透明にできます。4コマ専用のページ画像トレイは表示されません。
+キャンバス背景の上へ複数の画像レイヤーとSpeech Bubbles、Text、SFX、Stamps、Frames、Emphasis Linesを配置するモードです。画像レイヤーは表示、ロック、並び替え、複製、削除に対応し、倍率、位置、回転、不透明度を個別に調整できます。キャンバス背景は任意色または透明にできます。Page Imagesは3モードで共有でき、登録済み画像を一枚画像レイヤーとして配置することもできます。
 
 キャンバス背景では、単色、グラデーション、網点、線、チェック、花柄、ピクセル、タイル、スキャンライン、雲、マーブル、セルノイズ、タービュランス、フラクタルノイズ、木目、立体波、レンガ、編み込み、六角形、集中線、デジタル迷彩など23種類の内蔵パターンを選択できます。パターンは画像素材や外部ライブラリを使わずCanvasで生成され、画面表示と画像書き出しに同じ設定が適用されます。ユーザープリセット保存は未対応です。
 
