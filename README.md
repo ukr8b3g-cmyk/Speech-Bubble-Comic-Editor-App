@@ -2,7 +2,6 @@
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 # Speech Bubble Comic Editor App
 
-> **Migration status:** Phase 5 complete. The standalone v0.1.8 baseline now includes Forge Neo 0.7.10 Quick Retouch plus standalone-relevant processing, multi-text, drawer-state, Supersample, and bilingual UI parity fixes. Phase 6 release/regression validation is next.
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 
@@ -14,93 +13,55 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 ## 開発経緯
 
-このリポジトリは [Speech Bubble 4koma Editor](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor) の後継アプリです。Phase 1ではv0.1.8のスタンドアロン機能とプロジェクト互換性を維持したまま、製品・実行ファイル・保存領域を独立させています。
+このリポジトリは [Speech Bubble 4koma Editor](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor) の後継となるWindows向けスタンドアロン版です。
 
-本作のベースは、ComfyUI向けカスタムノードの[Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer)です。これをForge Neo向けに移植・拡張したものが[sd-webui-speech-bubble-forge-neo](https://github.com/ukr8b3g-cmyk/sd-webui-speech-bubble-forge-neo)で、本作はそのEditorをWindows向けのスタンドアロンアプリとして発展させています。
-
-単なる移植ではなく、縦4コマ漫画制作、漫画ページとコマのレイヤー構造、コミック変換、プロジェクト保存、Desktop設定、システムフォント連携などの機能を追加しています。また、元のEditorを基礎に、描画・書き出しの一致、縦書き、素材管理、復元、操作性などの不具合修正と改善も継続しています。
+ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) と、Forge Neo向け [Speech-Bubble-Comic-Editor-for-Forge-Neo](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo) で発展した編集機能を、Windows / pywebviewアプリとして統合しています。Forge WebUI固有の接続部分は持ち込まず、ローカルアプリ向けのプロジェクト保存、復元、画像処理、システムフォント連携を備えています。
 
 ## 配布状況
 
-後継版は現在移植作業中です。開発中のテスト用インストーラー／EXEは正式リリースではありません。
+**Windows版 v0.1.8 を公開しています。**
 
-移植元の安定版は [Speech Bubble 4koma Editor v0.1.8](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor/releases) です。
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
+- [v0.1.8 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v0.1.8)
+- [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SHA256SUMS.txt)
+
+インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
 
 ## 起動
 
-- インストーラー版: セットアップEXEを実行すると、必要なファイル一式をユーザー領域へ配置し、スタートメニューへ登録します。必要に応じてデスクトップショートカットも作成できます。
+**通常はインストーラー版を使用してください。**
+
+- インストーラー: [SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
-- 初回: `setup_and_start.cmd`
-- 2回目以降: `start.cmd`
+- ソース版の初回起動: `setup_and_start.cmd`
+- ソース版の2回目以降: `start.cmd`
 
-ソース版だけが専用`.venv`を使用します。ビルド済みEXEはPythonや`.venv`を別途用意せず起動できます。二重起動は防止され、起動エラーはローカルのログへ記録されます。
+インストーラーを実行すると必要なファイル一式をユーザー領域へ配置し、スタートメニューへ登録します。必要に応じてデスクトップショートカットも作成できます。
 
-上部の「新規プロジェクト」または`Ctrl+N`で、現在の作品を閉じて新しい編集を開始できます。未保存の変更がある場合は、保存、保存せず作成、キャンセルを選択します。アプリの終了はWindows標準の右上「×」または`Alt+F4`を使用し、未保存時は同じ確認を経由します。
+上部の「新規プロジェクト」または`Ctrl+N`で新しい編集を開始できます。アプリ終了はWindows標準の右上「×」または`Alt+F4`を使用し、未保存の変更がある場合は保存確認を表示します。
 
 ### EXE版とHTML直接表示の違い
 
-通常はEXE版、または`start.cmd`から起動してください。EXE版ではシステムフォント、日本語フォント、Settings、`.sbeproj`、指定フォルダーへの画像書き出しなど、Desktop APIを使う機能を利用できます。
+EXE版または`start.cmd`からの起動が通常の利用方法です。システムフォント、Settings、`.sbeproj`、指定フォルダーへの画像書き出し、ローカルAI背景削除などDesktop APIを使う機能を利用できます。
 
-後継版の新しい配布物はまだ公開していません。ソースから起動する場合は`setup_and_start.cmd`で専用`.venv`を準備し、以後は`start.cmd`を使用してください。移植元v0.1.8の配布物は旧リポジトリのReleasesから取得できます。
-
-`web\speech-bubble-editor.html`の直接表示は旧版互換・UI確認用で、現在のDesktopリリースと同等の動作を保証しません。ブラウザーからDesktop APIへ接続しないため、システムフォント、Settings、`.sbeproj`、指定フォルダーへの書き出しなども利用できません。
+`web\speech-bubble-editor.html`の直接表示はUI確認・互換確認用です。Desktop APIへ接続しないため、EXE版と同等の動作は保証しません。
 
 ## 主な機能
 
-### Phase 4で追加した移植機能
-
-- Forge Neo 0.7.10の「簡易レタッチ / Quick Retouch」をDesktop版へ移植
-- ブラシ、消しゴム、スポイト、矩形／投げ縄／自動選択、色域選択、Quick Mask
-- Hue / Saturation、Brightness / Contrast、Tone Curve、ペイント／調整レイヤー、Undo / Redo、比較表示
-- 一枚画像では元画像レイヤーを保持したままレタッチ結果を新規画像レイヤーとして追加
-- 4コマ／コミックではレタッチ結果をPage Imagesへ追加し、既存の画像配置経路で利用
-- `.sbeproj` / Project Schemaは変更せず、Quick Retouch内部履歴は一時編集状態として扱う
-
-### Phase 3で追加した移植機能
-
-- 一枚画像／4コマ漫画／コミックの3モードで非破壊クロップ。クロップ状態を保持し、リセット／再編集に対応
-- 4コマ／コミックのコマ画像に回転を追加し、クロップ・回転・反転・不透明度・Cover/Contain・拡大率・オフセットを同じ描画経路で処理
-- 複数選択した素材を、選択範囲／共通コマ／ページ基準で左右・上下・中央へ整列
-- 3個以上の選択素材を水平／垂直に均等配置
-- 複数選択時の相対位置を維持した一括回転
-
-### v0.1.8の主な修正
-
-- コミックのページ画像を削除しても、Undo時に画像Blobを再利用してサムネイル・コマ画像・プロジェクト保存を復元
-- コマ個別ロックをPropertiesの境界スライダーと結合ボタンにも反映
-- コマ割りロック中はテンプレート変更を無効化し、ページ構造の意図しない置き換えを防止
-- WindowsのFileVersion／ProductVersionを`0.1.8.0`として収録
-
-### v0.1.6の主な追加・改善
-
-- 第3の編集モード「コミック」を追加。標準5コマから、縦横分割、コマ結合、表示／非表示、斜め境界、一定幅のコマ間隔を編集
-- 境界の両端ハンドルで角度を変更し、中央ハンドルまたは境界線のドラッグで角度を保ったまま平行移動
-- `Shift`を押しながら境界端をドラッグすると15度刻みで吸着。水平／垂直付近は通常操作でも吸着
-- コミックでも4コマと同じページ画像トレイ、コマ画像、Speech Bubbles、Text、SFX、Stamps、Frames、Emphasis Linesを利用可能
-- AI背景削除へ自動選択ツールとエッジカラー補正を追加。フリンジ、不要色、白マット、黒マットを非破壊で補正
-- 4コマ漫画は新規作成時のコマ割りロックを解除し、すぐにコマ高さと見出しを調整可能
-
-- AI背景削除とマスク編集、コミック変換をDesktop版へ追加
-- 一枚画像を複数画像レイヤーで扱い、処理結果を新規レイヤーとして保持
-- Canvas背景の23種類の内蔵プロシージャルパターン
-- Layersの複数選択、一括操作、コーナー装飾を含むBuilt-inスタンプ
-- 未保存確認をWindowsの右上「×」と`Alt+F4`へ統一
-
-- 一枚画像／縦4コマ漫画／コミックの独立した編集状態と自動保存・復元
-- 720×2200の標準4コマ、キャンバス寸法・余白・コマ間隔・枠線・背景色の即時反映
-- PNG／JPEG／WebPのドラッグ配置、ページ画像トレイ、使用中画像を含む削除
-- LayersのCtrl／Shift複数選択、一括移動・拡大縮小・表示・ロック・削除
-- アニメ画像を白黒漫画調へ変換する「コミック変換」。4コマのページ画像追加と、一枚画像の新規画像レイヤー追加に対応
-- isnet-animeを使うローカルAI背景削除とマスク編集。4コマのページ画像追加と、一枚画像の新規画像レイヤー追加に対応
-- Ctrl＋ホイールでコマ内画像を拡大縮小、左ドラッグで移動。通常ホイールはキャンバス全体を拡大縮小
-- SFX／Stamps／Speech Bubbles／Emphasis Linesをページ上または選択コマ内へ配置し、コマ内では枠でクリップ
-- Speech Bubbles、SFX、Stamps、Frames、Emphasis Lines、Text
-- Emphasis Linesのクイック2件とDrawer全4件、ページ全体／選択コマへの配置
-- システムフォントと日本語フォント、縦書き、Canvas表示と同じブラウザーCanvas書き出し
-- Properties／Layersは常時独立したフローティングパネルとして表示され、位置と大きさを自動保存
-- 初回起動時だけキャンバスを全体表示し、2回目以降は一枚画像／4コマごとの表示倍率と位置を復元
-- 漫画ページのコマ割りはProperties上部またはLayersの鍵でロックできます。選択中素材の尻尾・回転・リサイズハンドルは背面画像より優先して操作できます
-- `.sbeproj`の保存・再読込
+- **3つの編集モード**: 一枚画像、縦4コマ漫画、自由なコマ割りのコミックを切り替えて編集
+- **Page Images**: 3モードで共有できる画像トレイ。ドラッグ配置、使用数管理、プロジェクト保存に対応
+- **Quick Retouch**: Brush / Eraser / Eyedropper、矩形・投げ縄・Magic Wand・Color Range、Quick Mask、Hue / Saturation、Brightness / Contrast、Tone Curve、Undo / Redo、比較表示
+- **非破壊画像編集**: Crop、回転、反転、不透明度、Cover / Contain、拡大率、オフセットを保持したまま再編集
+- **複数選択**: 移動・拡大縮小・回転、左右上下中央への整列、水平・垂直の均等配置
+- **複数Text一括編集**: フォント、サイズ、文字色、アウトライン、Tracking、Bold / Italicなどをまとめて変更
+- **背景削除**: `isnet-anime`を使うローカルAI背景削除、マスク編集、フリンジ・マット・エッジカラー補正
+- **コミック変換**: 画像を白黒漫画調へ変換し、一枚画像では新規レイヤー、4コマ／コミックではPage Imagesへ追加
+- **漫画素材**: Speech Bubbles、Text、SFX、Stamps、Frames、Emphasis Lines。各Drawerの幅やSFX/Stampセクション状態を記憶
+- **文字**: Windowsのシステムフォント、日本語フォント、縦書き、フォントお気に入り・履歴
+- **コミック編集**: コマ分割・結合、斜め境界、コマ間隔、コマ背景、画像のCrop / Rotation、ページ／コマへの素材配置
+- **プロジェクト**: `.sbeproj`保存・再読込、自動保存、復元、3ワークスペースの編集状態をまとめて保持
+- **書き出し**: PNG / JPEG / WebP、透明Overlay PNG、Canvas表示に基づく画像書き出し
+- **UI**: 日本語／英語、Light / Dark、Properties / Layersのフローティングパネル、素材Drawer状態の保存
 
 ## 3つの編集モード
 
@@ -110,7 +71,7 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 ### 一枚画像
 
-キャンバス背景の上へ複数の画像レイヤーとSpeech Bubbles、Text、SFX、Stamps、Frames、Emphasis Linesを配置するモードです。画像レイヤーは表示、ロック、並び替え、複製、削除に対応し、倍率、位置、回転、不透明度を個別に調整できます。キャンバス背景は任意色または透明にできます。4コマ専用のページ画像トレイは表示されません。
+キャンバス背景の上へ複数の画像レイヤーとSpeech Bubbles、Text、SFX、Stamps、Frames、Emphasis Linesを配置するモードです。画像レイヤーは表示、ロック、並び替え、複製、削除に対応し、倍率、位置、回転、不透明度を個別に調整できます。キャンバス背景は任意色または透明にできます。Page Imagesは3モードで共有でき、登録済み画像を一枚画像レイヤーとして配置することもできます。
 
 キャンバス背景では、単色、グラデーション、網点、線、チェック、花柄、ピクセル、タイル、スキャンライン、雲、マーブル、セルノイズ、タービュランス、フラクタルノイズ、木目、立体波、レンガ、編み込み、六角形、集中線、デジタル迷彩など23種類の内蔵パターンを選択できます。パターンは画像素材や外部ライブラリを使わずCanvasで生成され、画面表示と画像書き出しに同じ設定が適用されます。ユーザープリセット保存は未対応です。
 
