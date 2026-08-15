@@ -7,12 +7,12 @@
 - Preserve `.sbeproj`, project schema, three workspace modes, save/recovery/export behavior, and existing editing behavior.
 - Do not import Forge-specific adapters or settings integration.
 
-## Phase 2 — Shared Page Images and shared core fixes (in progress)
+## Phase 2 — Shared Page Images and shared core fixes
 
 - Port the Forge 0.7.10 Page Images behavior to the standalone app: the tray is visible in Single Image, 4-Panel Manga, and Comic and defaults to shared across all three workspaces.
 - Add the standalone `shared_project_images` setting and keep the Forge-equivalent default enabled while preserving Desktop settings/storage APIs.
 - Persist Page Images tray state in `.sbeproj`, include tray-only images in project saves, and keep shared-image removal, Undo/Redo, workspace switching, and legacy project loading consistent.
-- Continue with later Forge-side editor bug fixes that apply to the standalone app, including image replacement and remaining history/state fixes. Crop/alignment remains Phase 3.
+- Single Image replacement now follows the Forge 0.7.9 behavior: direct replacement refits the image, automatically follows image dimensions on an otherwise empty page, and asks before resizing an edited page. New +Image layers remain additive and start unlocked. Crop/alignment remains Phase 3.
 
 ## Phase 3 — Crop and alignment
 
