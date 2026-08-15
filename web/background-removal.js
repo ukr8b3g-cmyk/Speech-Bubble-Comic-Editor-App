@@ -1221,7 +1221,7 @@
         const name = `${base}-no-bg.png`;
         const applied = options.getMode() === "comic"
           ? await options.addPageImage(blob, name)
-          : await options.applySingleImage(blob, name);
+          : await options.applySingleImage(blob, name, source);
         if (applied === false) throw new Error(tr("編集画面へ適用できませんでした。", "Could not apply the result to the editor."));
         setStatus(options.getMode() === "comic" ? tr("ページ画像へ追加しました。", "Added to Page Images.") : tr("一枚画像へ適用しました。", "Applied to Single Image."), "ready");
         closeDialog();

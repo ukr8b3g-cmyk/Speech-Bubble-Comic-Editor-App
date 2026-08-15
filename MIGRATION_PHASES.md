@@ -39,3 +39,8 @@ Merge only the later Forge-side Background Removal and Comic Conversion improvem
 ## Phase 6 — Regression, packaging, and release preparation
 
 Run full regression/build validation, reconcile documentation and packaging, and prepare the first successor-app release.
+
+
+## Phase 5 — Forge 0.7.10 parity and processing fixes
+
+Phase 5 completed: processing source identity, batch image rendering, multi-text editing, per-drawer state, Desktop Supersample, bilingual UI/tooltips, and Page Images ID-reuse regression coverage.

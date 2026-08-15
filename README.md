@@ -2,7 +2,7 @@
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 # Speech Bubble Comic Editor App
 
-> **Migration status:** Phase 4 complete. The standalone v0.1.8 baseline now includes shared Page Images, non-destructive crop/alignment improvements, and Forge Neo 0.7.10 Quick Retouch. Phase 5 processing-diff integration is next.
+> **Migration status:** Phase 5 complete. The standalone v0.1.8 baseline now includes Forge Neo 0.7.10 Quick Retouch plus standalone-relevant processing, multi-text, drawer-state, Supersample, and bilingual UI parity fixes. Phase 6 release/regression validation is next.
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 
