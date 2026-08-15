@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body><div class="canvas-panel"></div><script src="../web/project-image-tray.js"></script><script>
+window.__errors=[];addEventListener("error",e=>__errors.push(String(e.error||e.message)));addEventListener("unhandledrejection",e=>__errors.push(String(e.reason)));
+const host=document.querySelector(".canvas-panel");let api=null;api=SpeechBubbleProjectImageTray.create({document,host,workspace:()=>"comic",english:()=>false,imageUrl:()=>"",getBlob:async()=>new Blob(["x"],{type:"image/png"}),place:async(asset)=>{api.register(asset,{notify:false,select:false,expand:false});return asset.id;}});
+api.register({id:"shared-1",name:"Original",width:100,height:100},{notify:false,select:false,expand:false});
+api.register({id:"shared-1",name:"Same ID",width:100,height:100},{notify:false,select:false,expand:false});
+api.place("shared-1").then(()=>{window.__result={state:api.serialize(),cards:host.querySelectorAll("[data-project-image-id]").length,count:host.querySelector("[data-project-tray-count]")?.textContent,errors:window.__errors};window.__ready=true;});
+</script></body></html>

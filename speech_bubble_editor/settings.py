@@ -45,6 +45,7 @@ _DESKTOP_SETTING_KEYS = {
     "speech_bubble_editor_webp_quality": "webp_quality",
     "speech_bubble_editor_webp_lossless": "webp_lossless",
     "speech_bubble_editor_auto_save": "auto_save",
+    "speech_bubble_editor_supersample": "supersample",
     "speech_bubble_editor_keep_previous_layout": "auto_save",
     "speech_bubble_editor_save_overlay": "save_overlay",
 }

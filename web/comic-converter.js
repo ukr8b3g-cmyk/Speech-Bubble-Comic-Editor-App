@@ -728,7 +728,7 @@
           );
         } else {
           await storeHistory(options.getDocumentId?.(), source.blob, source.name);
-          const applied = await options.applySingleImage?.(blob, name);
+          const applied = await options.applySingleImage?.(blob, name, source);
           if (!applied) throw new Error(tr("一枚画像へ適用できませんでした。", "Could not apply the conversion to the Single Image."));
           options.setStatus?.(
             tr("コミック変換を一枚画像へ適用しました。", "Comic Conversion was applied to the Single Image."),

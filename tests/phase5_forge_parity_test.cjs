@@ -1,0 +1,12 @@
+"use strict";
+const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
+const editor=fs.readFileSync("web/speech-bubble-editor.html","utf8"),bg=fs.readFileSync("web/background-removal.js","utf8"),conv=fs.readFileSync("web/comic-converter.js","utf8"),comic=fs.readFileSync("web/comic-editor.js","utf8"),general=fs.readFileSync("web/general-comic-editor.js","utf8"),shell=fs.readFileSync("web/desktop/desktop-shell.js","utf8");
+for(const [name,source] of [["background-removal.js",bg],["comic-converter.js",conv],["comic-editor.js",comic],["general-comic-editor.js",general],["desktop-shell.js",shell]])new vm.Script(source,{filename:name});
+assert.match(bg,/applySingleImage\(blob, name, source\)/);assert.match(conv,/applySingleImage\?\.\(blob, name, source\)/);
+assert.match(editor,/source_kind:"layer"/);assert.match(editor,/sourceContext\?\.layer_id\|\|""/);assert.doesNotMatch(editor,/sourceContext\?\.layer_id\|\|lastSingleProcessingLayerId/);assert.match(editor,/applySingleImage:\(blob,name,source\)=>applyProcessedSingleImage/);
+assert.match(comic,/attachBlob\(metadata, blob, render = true\)/);assert.match(comic,/attachBlob\(metadata, blob, false\)/);assert.match(general,/attachBlob\(metadata, blob, render = true\)/);assert.match(general,/attachBlob\(metadata, blob, false\)/);
+assert.match(editor,/function selectedTextItems\(\)/);assert.match(editor,/const bulkTextPropertyKeys=new Set\(\["font_size","color","stroke_color","stroke_width","tracking"\]\)/);assert.match(editor,/items=editableSelectedTextItems\(\)/);assert.match(editor,/multi-text-edit/);
+assert.match(editor,/DRAWER_WIDTHS_KEY = "speech_bubble:drawer_widths:v2"/);assert.match(editor,/SFX_SECTION_STATE_KEY = "speech_bubble:sfx_drawer_sections:v1"/);assert.match(editor,/restoreDrawerWidth\(drawer\)/);
+assert.match(editor,/const EDITOR_UI_TRANSLATIONS=/);assert.match(editor,/function applyEditorLanguage\(\)/);assert.match(editor,/speech-bubble:language-change/);
+assert.match(shell,/data-desktop-setting="supersample"/);
+console.log("phase5_forge_parity_test: OK");

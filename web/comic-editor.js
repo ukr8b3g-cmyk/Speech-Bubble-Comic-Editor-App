@@ -303,7 +303,7 @@
       }
     }
 
-    async function attachBlob(metadata, blob) {
+    async function attachBlob(metadata, blob, render = true) {
       const loaded = await imageFromBlob(blob);
       loaded.image.dataset.comicObjectUrl = loaded.url;
       objectUrls.add(loaded.url);
@@ -311,7 +311,7 @@
       runtimeImages.set(metadata.id, loaded.image);
       metadata.width = loaded.image.naturalWidth;
       metadata.height = loaded.image.naturalHeight;
-      options.requestRender({ canvas: true });
+      if (render) options.requestRender({ canvas: true });
     }
 
     async function hydrateImages() {
@@ -324,7 +324,7 @@
           .map(async (metadata) => {
             try {
               const blob = await loadImageBlob(targetDocument, metadata.id);
-              if (blob && hydratedDocumentId === targetDocument) await attachBlob(metadata, blob);
+              if (blob && hydratedDocumentId === targetDocument) await attachBlob(metadata, blob, false);
             } catch (error) {
               console.warn("Speech Bubble comic image restore failed", metadata.id, error);
             }
@@ -1568,7 +1568,7 @@
             sha256: digest,
             source: "stored",
           };
-          await attachBlob(metadata, file);
+          await attachBlob(metadata, file, false);
           comic.images.push(metadata);
           await storeImageBlob(documentId(), metadata, file);
           importedIds.push(metadata.id);
@@ -1788,7 +1788,7 @@
           };
           comic.images.push(metadata);
         }
-        await attachBlob(metadata, blob);
+        await attachBlob(metadata, blob, false);
         await storeImageBlob(documentId(), metadata, blob);
       }
       renderTray();

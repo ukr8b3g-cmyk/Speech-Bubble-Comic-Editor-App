@@ -68,9 +68,13 @@
                 <option value="en">English</option>
               </select>
             </label>
+            <label>Supersample
+              <input data-desktop-setting="supersample" type="number" min="1" max="4" step="1">
+            </label>
           </div>
           <label class="desktop-check desktop-empty-guide-check"><input data-desktop-setting="show_empty_canvas_guide" type="checkbox"><span>画像未読込時に「画像をドロップ」を表示</span></label>
           <label class="desktop-check desktop-empty-guide-check"><input data-desktop-setting="shared_project_images" type="checkbox"><span>ページ画像を3モードで共有</span></label>
+          <p class="hint">Supersample 1～4。互換レンダラー用で、EditorのExport Imageは表示Canvasを直接保存します。</p>
         </details>
         <details open>
           <summary>Export</summary>
@@ -1063,6 +1067,7 @@
     ["前回の編集を再開", "Resume previous edit"],
     ["常に新規作成", "Always start new"],
     ["編集キャッシュ", "Editor Cache"],
+    ["Supersample 1～4。互換レンダラー用で、EditorのExport Imageは表示Canvasを直接保存します。", "Supersample 1–4. Used by the compatibility renderer; Editor Export Image saves the displayed canvas directly."],
     ["ページ画像・変換履歴", "Page Images & Conversion History"],
     ["更新", "Refresh"],
     ["下書きキャッシュを削除", "Clear draft cache"],
