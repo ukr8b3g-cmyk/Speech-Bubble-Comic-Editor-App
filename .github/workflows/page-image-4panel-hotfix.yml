@@ -1,0 +1,48 @@
+name: Page Images 4-panel hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/page-image-4panel-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply Forge-equivalent Page Images placement fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('web/speech-bubble-editor.html')
+          s = p.read_text(encoding='utf-8')
+          old = '''    async function placeProjectImageAsset(asset,blob,control={}){if(!(blob instanceof Blob)||!asset?.id)return false;projectImageTray?.register(asset,{notify:false});if(generalComicEditor?.isActive()){if(!control.point&&!generalComicEditor.selectedPanel?.()){const fallback=generalComicEditor.defaultPanelInsertionTarget?.();if(fallback?.panelId)generalComicEditor.selectPanel?.(fallback.panelId);}return generalComicEditor.importExternalImage?.(blob,asset,{assignToSelectedPanel:true,point:control.point});}if(comicEditor?.isActive())return comicEditor.importExternalImage?.(blob,asset,{assignToSelectedPanel:true,point:control.point});return importProjectSingleImage(blob,asset,control);}'''
+          new = '''    async function placeProjectImageAsset(asset,blob,control={}){if(!(blob instanceof Blob)||!asset?.id)return false;projectImageTray?.register(asset,{notify:false});const file=blob instanceof File?blob:new File([blob],asset.name||"page-image",{type:asset.mime||blob.type||"image/png",lastModified:Date.now()});if(generalComicEditor?.isActive()||activeWorkspace==="comic_layout"){if(!control.point&&!generalComicEditor?.selectedPanel?.()){const fallback=generalComicEditor?.defaultPanelInsertionTarget?.();if(fallback?.panelId)generalComicEditor?.selectPanel?.(fallback.panelId);}return generalComicEditor?.importExternalImage?.(file,asset,{assignToSelectedPanel:true,point:control.point});}if(comicEditor?.isActive()||activeWorkspace==="comic"){if(!control.point&&!comicEditor?.selectedPanel?.()){const fallback=comicEditor?.defaultPanelInsertionTarget?.();if(fallback?.panelId)comicEditor?.selectPanel?.(fallback.panelId);}return comicEditor?.importExternalImage?.(file,asset,{assignToSelectedPanel:true,point:control.point});}return importProjectSingleImage(file,asset,control);}'''
+          if old not in s:
+              raise SystemExit('placeProjectImageAsset baseline did not match')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/*.cjs; do node "$f"; done
+          for f in web/*.js web/desktop/*.js; do node --check "$f"; done
+          python -m compileall -q desktop_app desktop_launcher.py
+          git diff --check
+      - name: Commit hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/speech-bubble-editor.html
+          git commit -m "Fix Page Images placement in 4-panel mode"
+          git push origin HEAD:main
