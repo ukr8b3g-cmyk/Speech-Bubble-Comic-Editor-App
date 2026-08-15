@@ -1,0 +1,58 @@
+name: Final README cleanup
+
+on:
+  push:
+    branches: [release-readme-v018-20260816]
+    paths:
+      - .github/workflows/readme-final-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix remaining stale README wording
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('README.md')
+          s = p.read_text(encoding='utf-8')
+          old = '4コマ専用のページ画像トレイは表示されません。'
+          new = 'Page Imagesは3モードで共有でき、登録済み画像を一枚画像レイヤーとして配置することもできます。'
+          if old not in s:
+              raise SystemExit('stale Single Image Page Images sentence was not found')
+          s = s.replace(old, new, 1)
+          s = re.sub(r'^(#{2,3} .+)\n\n\n+', r'\1\n\n', s, flags=re.M)
+          p.write_text(s, encoding='utf-8', newline='\n')
+          PY
+
+          grep -q "Page Imagesは3モードで共有" README.md
+          if grep -nE "Migration status|Phase [1-6]|移植作業中|正式リリースではありません|新しい配布物はまだ公開していません" README.md; then
+            echo "Stale release/migration wording remains in README" >&2
+            exit 1
+          fi
+          grep -q "releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe" README.md
+          git diff --check
+
+      - name: Commit README cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/readme-final-cleanup.yml
+          git add README.md .github/workflows/readme-final-cleanup.yml
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Clean up README release wording"
+          git push origin HEAD:release-readme-v018-20260816
