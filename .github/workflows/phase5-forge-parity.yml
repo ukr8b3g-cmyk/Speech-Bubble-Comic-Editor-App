@@ -1,0 +1,97 @@
+name: Phase 5 Forge parity validation
+
+on:
+  push:
+    branches: [phase5-forge-parity-20260816]
+    paths:
+      - .github/workflows/phase5-forge-parity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify clean baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          git fetch origin main
+          git merge-base --is-ancestor b24f419ae9be2cdb435b9593f01cdacbee036f43 HEAD
+          test -f AGENTS.md
+          cat AGENTS.md
+
+      - name: Fetch verified Forge 0.7.10 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo.git ../forge-source
+          git -C ../forge-source checkout 364b8426d316c6282dde620404ef24249a4db409 -- web/project-editor.html
+
+      - name: Apply Phase 5 migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/phase5_apply.py.gz.b64 <<'B64'
+          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
+          B64
+          base64 -d /tmp/phase5_apply.py.gz.b64 | gzip -d > /tmp/phase5_apply.py
+          python -m py_compile /tmp/phase5_apply.py
+          APP_ROOT="$PWD" FORGE_ROOT="$PWD/../forge-source" python /tmp/phase5_apply.py
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-desktop.txt pytest
+
+      - name: Static and Python validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/*.cjs; do
+            case "$f" in *browser*) continue;; esac
+            echo "== $f =="
+            node "$f"
+          done
+          find web -type f -name '*.js' -print0 | sort -z | xargs -0 -n1 node --check
+          python -m compileall -q desktop_app speech_bubble_editor tests
+          python -m pytest -q tests/test_*.py
+          git diff --check
+
+      - name: Install Chromium test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Browser regression validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/page_images_id_reuse_browser_smoke.cjs
+          node tests/quick_retouch_browser_smoke.cjs
+          node tests/quick_retouch_comic_browser_smoke.cjs
+
+      - name: Commit validated Phase 5 changes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/phase5-forge-parity.yml
+          rm -rf node_modules package-lock.json package.json .pytest_cache
+          git status --short
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Phase 5: align standalone behavior with Forge 0.7.10"
+          git push origin HEAD:phase5-forge-parity-20260816
