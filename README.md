@@ -41,7 +41,7 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 通常はEXE版、または`start.cmd`から起動してください。EXE版ではシステムフォント、日本語フォント、Settings、`.sbeproj`、指定フォルダーへの画像書き出しなど、Desktop APIを使う機能を利用できます。
 
-現行リリース（v0.1.8）の配布物はWindows x64セットアップEXEのみです。ソースから起動する場合は`setup_and_start.cmd`で専用`.venv`を準備し、以後は`start.cmd`を使用してください。
+後継版の新しい配布物はまだ公開していません。ソースから起動する場合は`setup_and_start.cmd`で専用`.venv`を準備し、以後は`start.cmd`を使用してください。移植元v0.1.8の配布物は旧リポジトリのReleasesから取得できます。
 
 `web\speech-bubble-editor.html`の直接表示は旧版互換・UI確認用で、現在のDesktopリリースと同等の動作を保証しません。ブラウザーからDesktop APIへ接続しないため、システムフォント、Settings、`.sbeproj`、指定フォルダーへの書き出しなども利用できません。
 
