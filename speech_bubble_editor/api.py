@@ -1,0 +1,1108 @@
+from __future__ import annotations
+
+import base64
+import binascii
+import io
+import json
+import math
+import mimetypes
+import os
+import re
+import threading
+import time
+import unicodedata
+import uuid
+from datetime import datetime, timezone
+from email import policy
+from email.parser import BytesParser
+from pathlib import Path
+from urllib.parse import quote
+
+from fastapi import HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from PIL import Image, ImageOps
+
+from . import __version__
+from .diagnostics import run_self_diagnostics
+from .font_catalog import font_by_id, public_fonts
+from .presets import read_user_presets, update_user_presets
+from .renderer import get_frame_asset_catalog, get_sfx_asset_catalog, render_composite
+from .settings import (
+    allowed_output_roots,
+    data_root,
+    layout_root,
+    output_root,
+    public_settings,
+    rebuild_all_caches,
+)
+from .user_assets import (
+    SETTINGS_UI_VERSION,
+    USER_ASSET_API_VERSION,
+    USER_ASSET_MAX_UPLOAD_BYTES,
+    UserAssetError,
+    default_user_asset_store,
+)
+
+EXTENSION_ROOT = Path(__file__).resolve().parents[1]
+WEB_ROOT = EXTENSION_ROOT / "web"
+_MAX_IMAGE_BYTES = 96 * 1024 * 1024
+_MAX_LAYOUT_CHARS = 8 * 1024 * 1024
+_MAX_EXPORT_MULTIPART_BYTES = _MAX_LAYOUT_CHARS + (_MAX_IMAGE_BYTES * 2) + 512 * 1024
+_MAX_LAYOUT_ELEMENTS = 2000
+_MAX_LAYOUT_COLLECTION_ITEMS = 10000
+_MAX_LAYOUT_STRING_CHARS = 1_000_000
+_MAX_LAYOUT_DEPTH = 32
+_ALLOWED_LAYOUT_ELEMENT_TYPES = {
+    "text",
+    "sfx",
+    "sfx_stamp",
+    "bubble",
+    "shape",
+    "frame",
+    "emphasis_lines",
+    "image",
+}
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+_EXPORT_TRANSPORT = "multipart_canvas_v1"
+_SAVE_LOCK = threading.RLock()
+_LAYOUT_LOCK = threading.RLock()
+_FINGERPRINT_RE = re.compile(r"^[a-f0-9]{64}$")
+_DOCUMENT_ID_RE = re.compile(
+    r"^(image:[a-f0-9]{64}|standalone:[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$"
+)
+_CLIENT_EXPORT_TOKEN_RE = re.compile(r"^[a-f0-9]{32}$")
+_CLIENT_EXPORT_MAX_AGE = 60 * 60
+
+
+def preset_path() -> Path:
+    return data_root() / "config" / "speech-bubble-editor" / "presets.json"
+
+
+def _decode_image_bytes(raw, field_name="image"):
+    if not raw or len(raw) > _MAX_IMAGE_BYTES:
+        raise ValueError(f"{field_name} is empty or too large")
+    try:
+        image = Image.open(io.BytesIO(raw))
+        image_format = str(image.format or "").upper()
+        image.load()
+        image = ImageOps.exif_transpose(image).convert("RGBA")
+    except Exception as error:
+        raise ValueError(f"Could not decode {field_name}") from error
+    if image.width * image.height > 100_000_000:
+        raise ValueError("Image dimensions are too large")
+    return image, image_format
+
+
+def _decode_data_url(value, field_name="image_data_url"):
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} is required")
+    match = re.fullmatch(
+        r"data:image/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n]+)",
+        value,
+        re.IGNORECASE,
+    )
+    if not match:
+        raise ValueError("Unsupported image data URL")
+    try:
+        raw = base64.b64decode(match.group(2), validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("Invalid base64 image") from error
+    return _decode_image_bytes(raw, field_name)[0]
+
+
+def _browser_canvas_export(payload, layout, save_overlay):
+    if payload.get("render_mode") != "browser_canvas_v1":
+        return None
+    composite_png = payload.get("_composite_png")
+    if isinstance(composite_png, bytes):
+        composite, composite_format = _decode_image_bytes(
+            composite_png,
+            "composite",
+        )
+        if composite_format != "PNG":
+            raise ValueError("Browser canvas composite must be PNG")
+    else:
+        composite = _decode_data_url(
+            payload.get("composite_data_url"),
+            "composite_data_url",
+        )
+        composite_png = None
+    overlay_png = payload.get("_overlay_png")
+    if save_overlay:
+        if isinstance(overlay_png, bytes):
+            overlay, overlay_format = _decode_image_bytes(
+                overlay_png,
+                "overlay",
+            )
+            if overlay_format != "PNG":
+                raise ValueError("Browser canvas overlay must be PNG")
+        else:
+            overlay = _decode_data_url(
+                payload.get("overlay_data_url"),
+                "overlay_data_url",
+            )
+            overlay_png = None
+    else:
+        overlay = None
+        overlay_png = None
+    if overlay is not None and composite.size != overlay.size:
+        raise ValueError("Browser canvas composite and overlay dimensions do not match")
+    canvas = layout.get("canvas") if isinstance(layout, dict) else None
+    if isinstance(canvas, dict):
+        expected = (
+            max(1, int(canvas.get("width", composite.width))),
+            max(1, int(canvas.get("height", composite.height))),
+        )
+        if composite.size != expected:
+            raise ValueError("Browser canvas dimensions do not match the layout")
+    return composite, overlay, composite_png, overlay_png
+
+
+async def _read_bounded_request_body(request: Request, maximum_bytes: int) -> bytes:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError as error:
+            raise ValueError("Invalid Content-Length header") from error
+        if declared_length < 0:
+            raise ValueError("Invalid Content-Length header")
+        if declared_length > maximum_bytes:
+            raise ValueError("Export request body is too large")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > maximum_bytes:
+            raise ValueError("Export request body is too large")
+    if not body:
+        raise ValueError("Export request body is empty")
+    return bytes(body)
+
+
+def _parse_export_multipart(content_type: str, raw: bytes) -> dict[str, bytes]:
+    try:
+        mime_header = (
+            b"Content-Type: "
+            + content_type.encode("latin-1", "strict")
+            + b"\r\nMIME-Version: 1.0\r\n\r\n"
+        )
+        message = BytesParser(policy=policy.default).parsebytes(mime_header + raw)
+    except Exception as error:
+        raise ValueError("Export multipart body is invalid") from error
+    if not message.is_multipart():
+        raise ValueError("Export multipart body is invalid")
+    parts: dict[str, bytes] = {}
+    for part in message.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            continue
+        name = str(part.get_param("name", header="content-disposition") or "")
+        if name not in {"metadata", "composite", "overlay"}:
+            continue
+        if name in parts:
+            raise ValueError(f"Duplicate multipart field: {name}")
+        value = part.get_payload(decode=True)
+        parts[name] = value if isinstance(value, bytes) else b""
+    return parts
+
+
+def _multipart_part(parts: dict[str, bytes], name: str, limit: int, required: bool = True):
+    value = parts.get(name)
+    if value is None:
+        if required:
+            raise ValueError(f"{name} is required")
+        return None
+    if not value or len(value) > limit:
+        raise ValueError(f"{name} is empty or too large")
+    return value
+
+
+async def _export_request_payload(request):
+    content_type = str(request.headers.get("content-type") or "")
+    if not content_type.lower().startswith("multipart/form-data"):
+        return await request.json()
+    raw = await _read_bounded_request_body(request, _MAX_EXPORT_MULTIPART_BYTES)
+    parts = _parse_export_multipart(content_type, raw)
+    metadata_raw = _multipart_part(
+        parts,
+        "metadata",
+        _MAX_LAYOUT_CHARS + 64 * 1024,
+    )
+    try:
+        payload = json.loads(metadata_raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("Export metadata is invalid") from error
+    if not isinstance(payload, dict):
+        raise ValueError("Export metadata must be an object")
+    payload["_composite_png"] = _multipart_part(parts, "composite", _MAX_IMAGE_BYTES)
+    payload["_overlay_png"] = _multipart_part(
+        parts,
+        "overlay",
+        _MAX_IMAGE_BYTES,
+        required=False,
+    )
+    return payload
+
+
+def _safe_name(value):
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    text = "".join(
+        character
+        for character in text
+        if not unicodedata.category(character).startswith("C")
+    )
+    text = re.sub(r'[<>:"/\\|?*]+', "_", text)
+    text = re.sub(r"\s+", " ", text).strip(" ._")
+    text = re.sub(r"_+", "_", text)
+    if not text or text in {".", ".."}:
+        return "speech_bubble"
+    stem = text.split(".", 1)[0].rstrip(" .").upper()
+    if stem in _WINDOWS_RESERVED_NAMES:
+        text = f"_{text}"
+    return text[:80].rstrip(" .") or "speech_bubble"
+
+
+def _safe_document_id(value: str) -> str:
+    document_id = str(value or "").strip().lower()
+    if _FINGERPRINT_RE.fullmatch(document_id):
+        return f"image:{document_id}"
+    if not _DOCUMENT_ID_RE.fullmatch(document_id):
+        raise ValueError("Invalid document ID")
+    return document_id
+
+
+def _reject_json_constant(value):
+    raise ValueError(f"Layout JSON contains a non-finite number: {value}")
+
+
+def _validate_layout_value(value, path="$", depth=0):
+    if depth > _MAX_LAYOUT_DEPTH:
+        raise ValueError(f"Layout JSON is nested too deeply at {path}")
+    if value is None or isinstance(value, (bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"Layout JSON contains a non-finite number at {path}")
+        return
+    if isinstance(value, str):
+        if len(value) > _MAX_LAYOUT_STRING_CHARS:
+            raise ValueError(f"Layout string is too long at {path}")
+        return
+    if isinstance(value, list):
+        if len(value) > _MAX_LAYOUT_COLLECTION_ITEMS:
+            raise ValueError(f"Layout array is too large at {path}")
+        for index, item in enumerate(value):
+            _validate_layout_value(item, f"{path}[{index}]", depth + 1)
+        return
+    if isinstance(value, dict):
+        if len(value) > _MAX_LAYOUT_COLLECTION_ITEMS:
+            raise ValueError(f"Layout object is too large at {path}")
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"Layout object key is invalid at {path}")
+            _validate_layout_value(item, f"{path}.{key}", depth + 1)
+        return
+    raise ValueError(f"Layout JSON contains an unsupported value at {path}")
+
+
+def _validate_layout(raw_layout) -> tuple[str, dict]:
+    if isinstance(raw_layout, dict):
+        parsed = raw_layout
+    elif isinstance(raw_layout, str) and len(raw_layout) <= _MAX_LAYOUT_CHARS:
+        parsed = json.loads(raw_layout or "{}", parse_constant=_reject_json_constant)
+    else:
+        raise ValueError("Layout JSON is invalid or too large")
+    if not isinstance(parsed, dict):
+        raise ValueError("Layout JSON must be an object")
+    _validate_layout_value(parsed)
+    canvas = parsed.get("canvas")
+    if canvas is not None:
+        if not isinstance(canvas, dict):
+            raise ValueError("Layout canvas must be an object")
+        for key in ("width", "height"):
+            if key not in canvas:
+                continue
+            value = canvas[key]
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not 1 <= float(value) <= 65535
+            ):
+                raise ValueError(f"Layout canvas {key} is invalid")
+    elements = parsed.get("elements", [])
+    if not isinstance(elements, list):
+        raise ValueError("Layout elements must be an array")
+    if len(elements) > _MAX_LAYOUT_ELEMENTS:
+        raise ValueError("Layout contains too many elements")
+    for index, element in enumerate(elements):
+        if not isinstance(element, dict):
+            raise ValueError(f"Layout element {index} must be an object")
+        element_type = str(element.get("type") or "")
+        if element_type not in _ALLOWED_LAYOUT_ELEMENT_TYPES:
+            raise ValueError(f"Layout element {index} has an unsupported type")
+        path_points = element.get("path_points")
+        if path_points is not None:
+            if not isinstance(path_points, list) or not 3 <= len(path_points) <= 256:
+                raise ValueError(f"Layout element {index} has invalid path points")
+            for point_index, point in enumerate(path_points):
+                if not isinstance(point, dict):
+                    raise ValueError(
+                        f"Layout element {index} path point {point_index} must be an object"
+                    )
+                for coordinate in ("x", "y"):
+                    value = point.get(coordinate)
+                    if (
+                        isinstance(value, bool)
+                        or not isinstance(value, (int, float))
+                        or not math.isfinite(float(value))
+                    ):
+                        raise ValueError(
+                            f"Layout element {index} path point {point_index} is invalid"
+                        )
+        rays = element.get("rays")
+        if rays is not None:
+            if not isinstance(rays, list) or len(rays) > 1000:
+                raise ValueError(f"Layout element {index} has invalid emphasis rays")
+            for ray_index, polygon in enumerate(rays):
+                if not isinstance(polygon, list) or len(polygon) != 4:
+                    raise ValueError(
+                        f"Layout element {index} emphasis ray {ray_index} is invalid"
+                    )
+                for point in polygon:
+                    if (
+                        not isinstance(point, list)
+                        or len(point) != 2
+                        or any(
+                            isinstance(value, bool)
+                            or not isinstance(value, (int, float))
+                            or not math.isfinite(float(value))
+                            for value in point
+                        )
+                    ):
+                        raise ValueError(
+                            f"Layout element {index} emphasis ray {ray_index} is invalid"
+                        )
+    normalized = json.dumps(parsed, ensure_ascii=False, indent=2, allow_nan=False)
+    if len(normalized) > _MAX_LAYOUT_CHARS:
+        raise ValueError("Layout JSON is too large")
+    return normalized, parsed
+
+
+def _write_image(image, path, image_format, settings):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        if image_format == "png":
+            image.save(
+                temporary,
+                format="PNG",
+                compress_level=settings.png_compression,
+            )
+        elif image_format == "jpeg":
+            rgba = image.convert("RGBA")
+            flattened = Image.new("RGB", rgba.size, "white")
+            flattened.paste(rgba, mask=rgba.getchannel("A"))
+            flattened.save(
+                temporary,
+                format="JPEG",
+                quality=settings.jpeg_quality,
+                optimize=True,
+            )
+        elif image_format == "webp":
+            image.save(
+                temporary,
+                format="WEBP",
+                quality=settings.webp_quality,
+                lossless=settings.webp_lossless,
+                method=6,
+            )
+        else:
+            raise ValueError("Unsupported output format")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _write_png(image, path, settings):
+    _write_image(image, path, "png", settings)
+
+
+def _write_bytes(data, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_bytes(data)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _output_extension(image_format: str) -> str:
+    return {"png": ".png", "jpeg": ".jpg", "webp": ".webp"}[image_format]
+
+
+def _dated_output_root(root: Path, now: datetime, mode: str) -> Path:
+    if mode == "year_month":
+        return root / f"{now:%Y-%m}"
+    if mode == "year_month_day":
+        return root / f"{now:%Y-%m-%d}"
+    return root
+
+
+def _export_stem(prefix: str, now: datetime, filename_format: str, root: Path, extension: str) -> str:
+    if filename_format == "source_only":
+        return f"{prefix}_edited"
+    if filename_format == "source_sequence":
+        for sequence in range(1, 1_000_000):
+            stem = f"{prefix}_{sequence:04d}"
+            if not (root / f"{stem}{extension}").exists():
+                return stem
+        raise ValueError("Could not allocate the next output sequence")
+    if filename_format == "speech_bubble_datetime":
+        prefix = "speech_bubble"
+    return f"{prefix}_{now:%Y%m%d_%H%M%S_%f}"
+
+
+def _rotate_backups(path: Path, generations: int) -> None:
+    if not path.exists():
+        return
+    backup_pattern = re.compile(
+        rf"^{re.escape(path.stem)}_backup_(\d+){re.escape(path.suffix)}$"
+    )
+    for candidate in path.parent.glob(f"{path.stem}_backup_*{path.suffix}"):
+        match = backup_pattern.fullmatch(candidate.name)
+        if match and int(match.group(1)) > generations:
+            candidate.unlink(missing_ok=True)
+    for index in range(generations, 1, -1):
+        previous = path.with_name(f"{path.stem}_backup_{index - 1:02d}{path.suffix}")
+        target = path.with_name(f"{path.stem}_backup_{index:02d}{path.suffix}")
+        if previous.exists():
+            target.unlink(missing_ok=True)
+            previous.replace(target)
+    first = path.with_name(f"{path.stem}_backup_01{path.suffix}")
+    first.unlink(missing_ok=True)
+    path.replace(first)
+
+
+def _client_export_root() -> Path:
+    return (data_root() / "config" / "speech-bubble-editor" / "export-temp").resolve()
+
+
+def _client_export_dir(token: str) -> Path:
+    if not _CLIENT_EXPORT_TOKEN_RE.fullmatch(str(token or "")):
+        raise HTTPException(status_code=404, detail="Temporary export not found")
+    return _client_export_root() / token
+
+
+def _remove_client_export(token: str) -> bool:
+    directory = _client_export_dir(token)
+    if not directory.is_dir():
+        return False
+    for child in directory.iterdir():
+        if child.is_file():
+            child.unlink(missing_ok=True)
+    directory.rmdir()
+    return True
+
+
+def _cleanup_stale_client_exports() -> None:
+    root = _client_export_root()
+    if not root.is_dir():
+        return
+    cutoff = time.time() - _CLIENT_EXPORT_MAX_AGE
+    for directory in root.iterdir():
+        if (
+            directory.is_dir()
+            and _CLIENT_EXPORT_TOKEN_RE.fullmatch(directory.name)
+            and directory.stat().st_mtime < cutoff
+        ):
+            _remove_client_export(directory.name)
+
+
+def _output_url(prefix: str, relative_path: Path) -> str:
+    return f"/speech-bubble-editor/{prefix}/{quote(relative_path.as_posix(), safe='/')}"
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _route_exists(app, path, method=None):
+    method = method.upper() if method else None
+    for route in app.routes:
+        if getattr(route, "path", None) != path:
+            continue
+        methods = getattr(route, "methods", None) or set()
+        if method is None or method in methods:
+            return True
+    return False
+
+
+_USER_ASSET_REQUEST_MAX_BYTES = max(6 * 1024 * 1024, (USER_ASSET_MAX_UPLOAD_BYTES * 4 // 3) + 128 * 1024)
+
+
+async def _bounded_json_request(request: Request, maximum_bytes: int = _USER_ASSET_REQUEST_MAX_BYTES):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > maximum_bytes:
+                raise HTTPException(status_code=413, detail="Request body is too large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > maximum_bytes:
+            raise HTTPException(status_code=413, detail="Request body is too large")
+    if not body:
+        return {}
+    try:
+        return json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise HTTPException(status_code=400, detail="Invalid JSON request") from error
+
+
+def _user_asset_http_error(error: UserAssetError) -> HTTPException:
+    if error.code == "preset_not_found":
+        status_code = 404
+    elif error.code == "duplicate_name":
+        status_code = 409
+    elif error.code in {
+        "opaque_confirmation_required",
+        "animated_image",
+        "unsupported_format",
+        "file_too_large",
+    }:
+        status_code = 422
+    elif error.code.startswith("index_"):
+        status_code = 500
+    else:
+        status_code = 400
+    return HTTPException(status_code=status_code, detail=error.as_dict())
+
+
+def _safe_output_file(filename: str) -> Path:
+    for root in allowed_output_roots():
+        candidate = (root / filename).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    raise HTTPException(status_code=404, detail="Output file not found")
+
+
+def _layout_file(document_id: str) -> Path:
+    document_id = _safe_document_id(document_id)
+    if document_id.startswith("image:"):
+        storage_key = document_id.removeprefix("image:")
+    else:
+        storage_key = f"standalone_{document_id.removeprefix('standalone:')}"
+    return layout_root() / f"{storage_key}.json"
+
+
+def register_routes(app):
+    """Register the standalone editor, asset APIs, settings API, layout store, and exporter."""
+    if getattr(app.state, "speech_bubble_editor_registered", False):
+        return
+    app.state.speech_bubble_editor_registered = True
+
+    output_root().mkdir(parents=True, exist_ok=True)
+    layout_root().mkdir(parents=True, exist_ok=True)
+    _client_export_root().mkdir(parents=True, exist_ok=True)
+    _cleanup_stale_client_exports()
+
+    if not _route_exists(app, "/speech-bubble-editor/static"):
+        app.mount(
+            "/speech-bubble-editor/static",
+            StaticFiles(directory=str(WEB_ROOT), html=True, check_dir=True),
+            name="speech-bubble-editor-static",
+        )
+
+    async def health():
+        return {
+            "ok": True,
+            "name": "Speech Bubble Comic Editor App",
+            "version": __version__,
+            "settings_ui_version": SETTINGS_UI_VERSION,
+            "user_asset_api_version": USER_ASSET_API_VERSION,
+            "export_transport": _EXPORT_TRANSPORT,
+            "settings": public_settings().as_dict(),
+        }
+
+    async def config():
+        return {
+            "ok": True,
+            "version": __version__,
+            "settings_ui_version": SETTINGS_UI_VERSION,
+            "user_asset_api_version": USER_ASSET_API_VERSION,
+            "export_transport": _EXPORT_TRANSPORT,
+            **public_settings().as_dict(),
+        }
+
+    async def output_file(filename: str):
+        path = _safe_output_file(filename)
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(path, media_type=media_type, filename=path.name)
+
+    async def view_file(filename: str):
+        path = _safe_output_file(filename)
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(path, media_type=media_type)
+
+    async def client_export_file(token: str, kind: str):
+        if kind not in {"composite", "overlay"}:
+            raise HTTPException(status_code=404, detail="Temporary export not found")
+        directory = _client_export_dir(token)
+        candidates = list(directory.glob(f"{kind}.*")) if directory.is_dir() else []
+        if len(candidates) != 1 or not candidates[0].is_file():
+            raise HTTPException(status_code=404, detail="Temporary export not found")
+        path = candidates[0]
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(path, media_type=media_type)
+
+    async def delete_client_export(token: str):
+        try:
+            return {"ok": True, "deleted": _remove_client_export(token)}
+        except OSError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    async def fonts():
+        return {"fonts": public_fonts()}
+
+    async def font_file(font_id: str):
+        font = font_by_id(font_id)
+        if not font:
+            raise HTTPException(status_code=404, detail="Font not found")
+        content_type = mimetypes.guess_type(font["path"])[0] or "application/octet-stream"
+        return FileResponse(font["path"], media_type=content_type)
+
+    async def frame_assets():
+        return get_frame_asset_catalog()
+
+    async def sfx_assets():
+        return get_sfx_asset_catalog()
+
+    async def reload_assets():
+        rebuild_all_caches()
+        return get_sfx_asset_catalog()
+
+    async def get_user_assets():
+        try:
+            return default_user_asset_store().catalog()
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def create_user_asset(request: Request):
+        try:
+            return default_user_asset_store().create(await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def organize_user_asset_archive():
+        try:
+            return default_user_asset_store().organize_archive()
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def update_user_asset(preset_id: str, request: Request):
+        try:
+            return default_user_asset_store().update(preset_id, await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def replace_user_asset_image(preset_id: str, request: Request):
+        try:
+            return default_user_asset_store().replace_image(preset_id, await _bounded_json_request(request))
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def delete_user_asset(preset_id: str):
+        try:
+            return default_user_asset_store().delete(preset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+
+    async def user_asset_file(asset_id: str):
+        try:
+            path = default_user_asset_store().asset_path(asset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+        if path is None:
+            raise HTTPException(status_code=404, detail="User asset not found")
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    async def user_asset_thumbnail(asset_id: str):
+        try:
+            path = default_user_asset_store().thumbnail_path(asset_id)
+        except UserAssetError as error:
+            raise _user_asset_http_error(error) from error
+        if path is None:
+            raise HTTPException(status_code=404, detail="User asset thumbnail not found")
+        return FileResponse(
+            path,
+            media_type="image/webp",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    async def self_diagnostics(request: Request):
+        try:
+            payload = await request.json()
+        except json.JSONDecodeError:
+            payload = {}
+        return run_self_diagnostics(str(payload.get("frontend_version") or ""))
+
+    async def get_presets():
+        return {"version": 1, "presets": read_user_presets(preset_path())}
+
+    async def post_presets(request: Request):
+        try:
+            payload = await request.json()
+            presets = update_user_presets(preset_path(), payload)
+            return {"version": 1, "presets": presets}
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    async def get_layout(fingerprint: str):
+        try:
+            document_id = _safe_document_id(fingerprint)
+            path = _layout_file(document_id)
+            if not path.is_file():
+                return {
+                    "ok": True,
+                    "exists": False,
+                    "document_id": document_id,
+                    "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
+                    "layout_json": "{}",
+                }
+            with _LAYOUT_LOCK:
+                wrapper = json.loads(path.read_text(encoding="utf-8"))
+            layout = wrapper.get("layout", wrapper)
+            normalized, _ = _validate_layout(layout)
+            return {
+                "ok": True,
+                "exists": True,
+                "document_id": document_id,
+                "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
+                "layout_json": normalized,
+                "saved_at": wrapper.get("saved_at") if isinstance(wrapper, dict) else None,
+                "source_name": wrapper.get("source_name", "") if isinstance(wrapper, dict) else "",
+            }
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    async def put_layout(fingerprint: str, request: Request):
+        try:
+            document_id = _safe_document_id(fingerprint)
+            payload = await request.json()
+            normalized, parsed = _validate_layout(payload.get("layout_json", "{}"))
+            wrapper = {
+                "version": 1,
+                "document_id": document_id,
+                "fingerprint": document_id.removeprefix("image:") if document_id.startswith("image:") else "",
+                "source_name": _safe_name(payload.get("source_name") or "speech_bubble"),
+                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "layout": parsed,
+            }
+            with _LAYOUT_LOCK:
+                _write_text_atomic(
+                    _layout_file(document_id),
+                    json.dumps(wrapper, ensure_ascii=False, indent=2),
+                )
+            return {
+                "ok": True,
+                "document_id": document_id,
+                "fingerprint": wrapper["fingerprint"],
+                "layout_json": normalized,
+                "saved_at": wrapper["saved_at"],
+            }
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    async def delete_layout(fingerprint: str):
+        try:
+            path = _layout_file(_safe_document_id(fingerprint))
+            with _LAYOUT_LOCK:
+                existed = path.is_file()
+                path.unlink(missing_ok=True)
+            return {"ok": True, "deleted": existed}
+        except (ValueError, OSError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    async def export_image(request: Request):
+        client_token = ""
+        request_started = time.perf_counter()
+        try:
+            payload = await _export_request_payload(request)
+            _normalized_layout, parsed_layout = _validate_layout(payload.get("layout_json", "{}"))
+            settings = public_settings()
+            parsed_at = time.perf_counter()
+            browser_canvas = _browser_canvas_export(
+                payload,
+                parsed_layout,
+                settings.save_overlay,
+            )
+            if browser_canvas is None:
+                image = _decode_data_url(payload.get("image_data_url"))
+                composite, overlay, _ = render_composite(
+                    image,
+                    json.dumps(parsed_layout, ensure_ascii=False),
+                    font_path=str(payload.get("font_path") or ""),
+                    supersample=settings.supersample,
+                )
+                composite_png = None
+                overlay_png = None
+                render_mode = "pillow_layout_v1"
+            else:
+                composite, overlay, composite_png, overlay_png = browser_canvas
+                render_mode = "browser_canvas_v1"
+            rendered_at = time.perf_counter()
+
+            now = datetime.now()
+            prefix = _safe_name(payload.get("name") or "speech_bubble")
+            extension = _output_extension(settings.output_format)
+            client_save = payload.get("client_save") is True
+            source_tab = str(payload.get("source_tab") or "").strip().lower()
+            requested_desktop_output = str(payload.get("desktop_output_dir") or "").strip()
+            desktop_output = False
+            if requested_desktop_output:
+                desktop_root = str(os.environ.get("SPEECH_BUBBLE_DESKTOP_DATA_ROOT", "") or "").strip()
+                if not desktop_root:
+                    raise ValueError("Custom desktop output is unavailable outside the Desktop app")
+                requested_path = Path(requested_desktop_output).expanduser()
+                if not requested_path.is_absolute():
+                    raise ValueError("Desktop output directory must be an absolute path")
+                out_root = requested_path.resolve()
+                if not out_root.is_dir():
+                    raise ValueError("Desktop output directory does not exist")
+                desktop_output = True
+                export_root = _dated_output_root(
+                    out_root,
+                    now,
+                    settings.date_subfolder,
+                )
+            elif client_save:
+                _cleanup_stale_client_exports()
+                client_token = uuid.uuid4().hex
+                out_root = _client_export_dir(client_token)
+                export_root = out_root
+            else:
+                out_root = output_root(source_tab)
+                export_root = _dated_output_root(
+                    out_root,
+                    now,
+                    settings.date_subfolder,
+                )
+            stem = _export_stem(
+                prefix,
+                now,
+                settings.filename_format,
+                export_root,
+                extension,
+            )
+
+            save_started = time.perf_counter()
+            with _SAVE_LOCK:
+                export_root.mkdir(parents=True, exist_ok=True)
+                composite_path = (
+                    export_root / f"composite{extension}"
+                    if client_save
+                    else export_root / f"{stem}{extension}"
+                )
+                overlay_path = (
+                    export_root / "overlay.png"
+                    if client_save
+                    else export_root / f"{stem}_overlay.png"
+                )
+                if not client_save and settings.backup_enabled:
+                    _rotate_backups(composite_path, settings.backup_generations)
+                    if settings.save_overlay:
+                        _rotate_backups(overlay_path, settings.backup_generations)
+                if settings.output_format == "png" and composite_png is not None:
+                    _write_bytes(composite_png, composite_path)
+                else:
+                    _write_image(
+                        composite,
+                        composite_path,
+                        settings.output_format,
+                        settings,
+                    )
+                if settings.save_overlay:
+                    if overlay_png is not None:
+                        _write_bytes(overlay_png, overlay_path)
+                    else:
+                        _write_png(overlay, overlay_path, settings)
+            saved_at = time.perf_counter()
+
+            if client_save:
+                composite_url = (
+                    f"/speech-bubble-editor/client-export/{client_token}/composite"
+                )
+                overlay_url = (
+                    f"/speech-bubble-editor/client-export/{client_token}/overlay"
+                    if settings.save_overlay
+                    else None
+                )
+                relative_path = None
+                filename = f"{stem}{extension}"
+                overlay_filename = f"{stem}_overlay.png"
+            elif desktop_output:
+                relative_path = composite_path.relative_to(out_root)
+                overlay_relative = overlay_path.relative_to(out_root)
+                composite_url = None
+                overlay_url = None
+                filename = composite_path.name
+                overlay_filename = overlay_path.name
+            else:
+                relative_path = composite_path.relative_to(out_root)
+                overlay_relative = overlay_path.relative_to(out_root)
+                composite_url = _output_url("view", relative_path)
+                overlay_url = (
+                    _output_url("view", overlay_relative)
+                    if settings.save_overlay
+                    else None
+                )
+                filename = composite_path.name
+                overlay_filename = overlay_path.name
+
+            timings_ms = {
+                "request_parse": round((parsed_at - request_started) * 1000, 1),
+                "render_decode": round((rendered_at - parsed_at) * 1000, 1),
+                "save": round((saved_at - save_started) * 1000, 1),
+                "server_total": round((time.perf_counter() - request_started) * 1000, 1),
+            }
+            return {
+                "ok": True,
+                "filename": filename,
+                "overlay_filename": overlay_filename if settings.save_overlay else None,
+                "relative_path": relative_path.as_posix() if relative_path else None,
+                "composite_url": composite_url,
+                "download_url": (
+                    composite_url
+                    if client_save or desktop_output
+                    else _output_url("output", relative_path)
+                ),
+                "overlay_url": overlay_url,
+                "overlay_download_url": (
+                    overlay_url
+                    if client_save or desktop_output
+                    else (
+                        _output_url("output", overlay_relative)
+                        if settings.save_overlay
+                        else None
+                    )
+                ),
+                "client_export_token": client_token or None,
+                "client_save": client_save,
+                "desktop_output": desktop_output,
+                "width": composite.width,
+                "height": composite.height,
+                "supersample": settings.supersample,
+                "render_mode": render_mode,
+                "timings_ms": timings_ms,
+                "save_overlay": settings.save_overlay,
+                "output_format": settings.output_format,
+                "output_dir": None if client_save else str(export_root),
+            }
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            if client_token:
+                _remove_client_export(client_token)
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        except Exception as error:
+            if client_token:
+                _remove_client_export(client_token)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Speech Bubble export failed: {error}",
+            ) from error
+
+    routes = [
+        ("/speech-bubble-editor/health", health, ["GET"]),
+        ("/speech-bubble-editor/config", config, ["GET"]),
+        ("/speech-bubble-editor/output/{filename:path}", output_file, ["GET"]),
+        ("/speech-bubble-editor/view/{filename:path}", view_file, ["GET"]),
+        (
+            "/speech-bubble-editor/client-export/{token}/{kind}",
+            client_export_file,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-editor/client-export/{token}",
+            delete_client_export,
+            ["DELETE"],
+        ),
+        ("/speech-bubble-editor/layout/{fingerprint}", get_layout, ["GET"]),
+        ("/speech-bubble-editor/layout/{fingerprint}", put_layout, ["PUT"]),
+        ("/speech-bubble-editor/layout/{fingerprint}", delete_layout, ["DELETE"]),
+        ("/speech_bubble/fonts", fonts, ["GET"]),
+        ("/speech_bubble/font-file/{font_id}", font_file, ["GET"]),
+        ("/speech_bubble/frame-assets", frame_assets, ["GET"]),
+        ("/speech_bubble/assets/sfx", sfx_assets, ["GET"]),
+        ("/speech_bubble/assets/reload", reload_assets, ["POST"]),
+        ("/speech-bubble-editor/user-assets", get_user_assets, ["GET"]),
+        ("/speech-bubble-editor/user-assets", create_user_asset, ["POST"]),
+        (
+            "/speech-bubble-editor/user-assets/archive/organize",
+            organize_user_asset_archive,
+            ["POST"],
+        ),
+        (
+            "/speech-bubble-editor/user-assets/asset/{asset_id}",
+            user_asset_file,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-editor/user-assets/thumbnail/{asset_id}",
+            user_asset_thumbnail,
+            ["GET"],
+        ),
+        (
+            "/speech-bubble-editor/user-assets/{preset_id}/image",
+            replace_user_asset_image,
+            ["PUT"],
+        ),
+        (
+            "/speech-bubble-editor/user-assets/{preset_id}",
+            update_user_asset,
+            ["PATCH"],
+        ),
+        (
+            "/speech-bubble-editor/user-assets/{preset_id}",
+            delete_user_asset,
+            ["DELETE"],
+        ),
+        ("/speech-bubble-editor/diagnostics", self_diagnostics, ["POST"]),
+        ("/speech_bubble/presets", get_presets, ["GET"]),
+        ("/speech_bubble/presets", post_presets, ["POST"]),
+        ("/speech-bubble-editor/export", export_image, ["POST"]),
+        # Compatibility alias for v0.2.x clients.
+        ("/speech-bubble-editor/render", export_image, ["POST"]),
+    ]
+    for path, endpoint, methods in routes:
+        method = methods[0]
+        if not _route_exists(app, path, method):
+            app.add_api_route(path, endpoint, methods=methods)
+
+    print("[Speech Bubble Comic Editor App] Editor ready")
+    print(f"[Speech Bubble Comic Editor App] Output: {output_root()}")
+    print(f"[Speech Bubble Comic Editor App] Layouts: {layout_root()}")
