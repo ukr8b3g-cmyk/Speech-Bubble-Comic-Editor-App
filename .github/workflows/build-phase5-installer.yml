@@ -1,0 +1,78 @@
+name: Build Phase 5 installer
+
+on:
+  push:
+    branches: [phase5-installer-build-20260816]
+    paths:
+      - .github/workflows/build-phase5-installer.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements-desktop.txt
+            requirements-build.txt
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check --upgrade pip
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Find Inno Setup compiler
+        id: iscc
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup 6 compiler (ISCC.exe) was not found." }
+          "path=$iscc" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          .\build_release.ps1 -Version "0.1.8-phase5" -IsccPath "${{ steps.iscc.outputs.path }}" -InstallerOnly
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $installer = "dist\release\SpeechBubbleComicEditorApp-v0.1.8-phase5-win-x64-setup.exe"
+          $checksums = "dist\release\SHA256SUMS.txt"
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Installer missing: $installer" }
+          if (-not (Test-Path -LiteralPath $checksums -PathType Leaf)) { throw "Checksum file missing: $checksums" }
+          $size = (Get-Item -LiteralPath $installer).Length
+          if ($size -lt 1048576) { throw "Installer is unexpectedly small: $size bytes" }
+          Get-FileHash -Algorithm SHA256 -LiteralPath $installer
+          Get-Content -LiteralPath $checksums
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeechBubbleComicEditorApp-v0.1.8-phase5-installer
+          path: |
+            dist/release/SpeechBubbleComicEditorApp-v0.1.8-phase5-win-x64-setup.exe
+            dist/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
