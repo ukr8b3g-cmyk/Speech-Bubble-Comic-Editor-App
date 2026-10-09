@@ -1,6 +1,7 @@
 
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
-# Speech Bubble Comic Editor App
+
+# Speech Bubble Comic Editor App 1.0
 
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
@@ -15,19 +16,30 @@ AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、
 
 このリポジトリは [Speech Bubble 4koma Editor](https://github.com/ukr8b3g-cmyk/Speech-Bubble-4koma-Editor) の後継となるWindows向けスタンドアロン版です。
 
+新しいAppリポジトリへ漫画編集機能を統合し、一枚画像の仕上げ、縦4コマ制作、自由なコマ割りを扱えるように開発しています。現在の対応機能と操作は、このREADMEに記載しています。
+
 ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) と、Forge Neo向け [Speech-Bubble-Comic-Editor-for-Forge-Neo](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-for-Forge-Neo) で発展した編集機能を、Windows / pywebviewアプリとして統合しています。Forge WebUI固有の接続部分は持ち込まず、ローカルアプリ向けのプロジェクト保存、復元、画像処理、システムフォント連携を備えています。
 
 ## 配布状況
 
-**Windows版 1.0 を公開しています。**
+**Windows x64版 1.0 を公開しています。** アプリ・セットアップの表示は1.0、パッケージとプロジェクトに記録するアプリバージョンは1.0.0です。
 
 1.0では英語UIの素材名・通知を整えました。内蔵SFXとスタンプは安定IDに対応する日英名を表示し、日本語名・英語名・キーワードで検索できます。日本語SFX画像、ユーザーの素材名と入力文、既存`.sbeproj`の形式は保持しています。
 
 - [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe)
+- [ZIP版をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-portable.zip)
 - [v1.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
 - [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SHA256SUMS.txt)
 
 インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
+
+### 英語UIと素材画像の言語
+
+Settingsで日本語／英語を切り替えられます。1.0では内蔵SFX 190件・スタンプ94件の一覧名、レイヤー名、ツールチップ、読み上げ用ラベルを揃え、保存・書き出し・失敗通知や空のMy Presetsの案内も英語に対応しました。
+
+**UIの英語化は素材画像の英語化とは別です。** 同梱のオノマトペ／SFX・スタンプ画像の大半は日本語で、言語を英語に切り替えても画像内の文字は変わりません。英語版素材の制作は未着手です。英語の一覧名は、SFXの読みをローマ字で示し、意味が明確なものには説明を添えています。ユーザーが入力したセリフや登録した素材名は翻訳しません。
+
+> English UI and catalog labels are available. Most bundled SFX and stamp artwork remains Japanese. Work on English artwork variants has not started.
 
 ## 起動
 
@@ -40,7 +52,21 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 インストーラーを実行すると必要なファイル一式をユーザー領域へ配置し、スタートメニューへ登録します。必要に応じてデスクトップショートカットも作成できます。
 
+画面の表示にはMicrosoft Edge WebView2ランタイムを使用します。ZIP版は展開後に`SpeechBubbleComicEditorApp.exe`を起動してください。通常起動時の設定・キャッシュ保存先はインストーラー版と共通です。`--portable`を付けた場合の保存先は[保存場所](#保存場所)を参照してください。ソース版の初回セットアップにはPythonと依存パッケージの取得が必要です。
+
 上部の「新規プロジェクト」または`Ctrl+N`で新しい編集を開始できます。アプリ終了はWindows標準の右上「×」または`Alt+F4`を使用し、未保存の変更がある場合は保存確認を表示します。
+
+### 最初の作品を保存するまで
+
+初めて使う場合は、次の手順で画像の配置から保存までを確認できます。各機能の詳しい説明は、この後の該当節を参照してください。
+
+1. 「新規プロジェクト」を作り、上部で「一枚画像」「4コマ漫画」「コミック」を選びます。
+2. 一枚画像では画像レイヤーを追加します。4コマ／コミックでは下部のPage ImagesへPNG／JPEG／WebPを読み込み、サムネイルをコマへドラッグします。
+3. 左の素材一覧から吹き出し、SFX、スタンプなどを配置します。「＋ 文字を追加」でセリフを作り、Layersで対象を選んでPropertiesで調整します。
+4. 上部の「プロジェクト保存」で`.sbeproj`を保存します。3ワークスペースの状態と作品内の画像をまとめて保持し、「プロジェクトを開く」で再編集できます。
+5. Settingsで形式と出力先を選び、「画像を書き出す」で現在のワークスペースの合成画像を出力します。別のモードの画像を出力する場合は、先にそのモードへ切り替えます。
+
+`Ctrl+S`の「レイアウト保存」はローカルの編集レイアウトを保存する操作です。持ち運べる`.sbeproj`ファイルの保存には、上部の「プロジェクト保存」を使ってください。
 
 ### EXE版とHTML直接表示の違い
 
@@ -355,7 +381,7 @@ Save Layoutと`.sbeproj`は現在の作品配置を保存する機能です。�
 
 ![テーマ、言語、出力先、画像形式を設定するSettings](docs/images/settings-display-export.png)
 
-Settingsではテーマと言語を即時切替できます。「画像未読込時に『画像をドロップ』を表示」で、空の一枚画像キャンバスに表示する読み込み案内を切り替えられます。初期値は表示です。Exportでは出力フォルダーを参照ボタンで指定し、指定先への自動保存または前回選択したフォルダーの記憶を選べます。PNG／JPEG／WebP、品質・圧縮、ファイル名、日付サブフォルダー、Overlay PNG、同名ファイルの世代バックアップも設定できます。
+Settingsではテーマと言語を即時切替できます。「画像未読込時に『画像をドロップ』を表示」で、空の一枚画像キャンバスに表示する読み込み案内を切り替えられます。新規設定での初期値は非表示です。Exportでは出力フォルダーを参照ボタンで指定し、指定先への自動保存または前回選択したフォルダーの記憶を選べます。PNG／JPEG／WebP、品質・圧縮、ファイル名、日付サブフォルダー、Overlay PNG、同名ファイルの世代バックアップも設定できます。
 
 ![起動時の復元、自動保存間隔、UIレイアウトの初期化](docs/images/settings-editor-recovery.png)
 
@@ -375,11 +401,21 @@ Properties／Layersの位置と大きさは自動保存されます。標準配�
 
 ### レイアウト保存と画像書き出し
 
-- Save Layout: 現在のレイヤー構成と編集状態を保存
-- Export Image: Canvasで見えている合成結果をPNG／JPEG／WebPとして書き出し
-- `.sbeproj`: レイアウトとページ画像をまとめて保存し、後から再編集
+- Save Project／プロジェクト保存: 3ワークスペースのレイアウトと作品内の画像を`.sbeproj`へ保存し、後から再編集
+- Save Layout／レイアウト保存（`Ctrl+S`）: 編集レイアウトをローカルのユーザーデータへ保存。`.sbeproj`ファイルの更新や画像出力は行いません
+- Export Image／画像を書き出す: 現在のワークスペースのCanvasで見えている合成結果をPNG／JPEG／WebPとして書き出し
 
 Settingsで固定の出力先を指定できます。毎回保存先を選択する設定にした場合は、Export Imageのたびに保存先を選びます。
+
+## 現在の制限と1.0の検証範囲
+
+- 内蔵素材の表示名は日英対応ですが、オノマトペ／SFX・スタンプの英語版画像は未制作です。
+- フォントファイルはプロジェクトに埋め込みません。別PCでは使用フォントの導入が必要です。
+- 3ワークスペースは独立しており、モード間のレイヤー直接移動には対応していません。
+- キャンバス背景パターンのユーザープリセット保存は未対応です。
+- AI背景削除は初回にモデルの取得が必要です。取得後の推論はローカルCPUで行います。
+
+1.0の配布EXEでは、起動、日英切替、SFX・文字編集、`.sbeproj`の保存・再読込、PNG出力を確認しています。セットアップEXEはビルドとバージョン・公開ファイルの照合を確認済みです。インストーラーによるインストール／アンインストールとネイティブファイル選択ダイアログは、このリリースの自動検証では実行していません。検証の詳細は[v1.0のリリース説明](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)に記載しています。
 
 ## HTML
 
@@ -387,7 +423,15 @@ EditorのUIソースは`web\speech-bubble-editor.html`ですが、直接表示�
 
 ## 保存場所
 
-既定では、旧Desktop版との設定・プリセット・キャッシュ互換性を保つため`%LOCALAPPDATA%\SpeechBubbleComicEditorApp`を引き続き使用します。ソース版を`python -m desktop_app.main --portable`で起動した場合はプロジェクト内の`data`を使用します。
+通常起動では`%LOCALAPPDATA%\SpeechBubbleComicEditorApp`へ設定・プリセット・キャッシュ・モデルを保存します。ZIP版を通常起動した場合も同じ保存先です。`.sbeproj`と書き出し画像は、保存操作やSettingsで指定した場所へ保存します。
+
+ソース版を`python -m desktop_app.main --portable`で起動した場合はリポジトリ内の`data`を使用します。配布EXEを`SpeechBubbleComicEditorApp.exe --portable`で起動した場合は、展開先の`_internal\data`を使用します。
+
+保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.0という値と、保存形式のバージョンは別に管理しています。
+
+## 問い合わせ・不具合報告
+
+操作上の疑問や不具合は[このAppのIssues](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/issues)へ報告してください。アプリのバージョン、編集モード、再現手順があると確認しやすくなります。
 
 ## ライセンス
 
