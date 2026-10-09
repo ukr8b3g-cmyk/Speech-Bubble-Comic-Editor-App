@@ -39,4 +39,20 @@ assert.equal(layer({...saved,user_asset_id:'user-image',asset_label:'ユーザ�
 assert.equal(saved.asset_label,'ドン！');
 const sort=new Function('sfxSortMode','sfxDisplayLabel','uiEnglish',`${line('sortedSfxPresets')};return sortedSfxPresets;`)('name',p=>names.display(p,'en'),()=>true);
 const sorted=sort([...merged.values()]);for(let i=1;i<sorted.length;i++)assert.ok(names.display(sorted[i-1],'en').localeCompare(names.display(sorted[i],'en'),'en')<=0);
+// Palette text bypasses static translation. Language changes must regenerate its empty help.
+let emptyHelp;
+const noop=()=>{};
+const languageContext={
+ document:{querySelector:()=>null,querySelectorAll:()=>[],getElementById:()=>null,
+  createElement:()=>({dataset:{},children:[],append(...children){this.children.push(...children);}})},
+ uiText:(ja,en)=>english?en:ja,projectImageTray:null,
+ localizeStaticText:noop,applyAccessibleTooltips:noop,refreshLayers:noop,syncProperties:noop,renderFontBrowser:noop,
+ refreshQuickSfx:noop,refreshQuickFrames:noop,refreshQuickEmphasisLines:noop,
+ renderPresetBrowser:()=>{const section=languageContext.makeBubblePresetSection('My Presets',[],{user:true});emptyHelp=section.children[1].children[0].textContent;},
+};
+vm.createContext(languageContext);
+vm.runInContext(`${line('makeBubblePresetSection')}\n${html.match(/    function applyEditorLanguage\(\)\{[\s\S]*?\n    \}/)[0]}`,languageContext);
+english=false;languageContext.applyEditorLanguage();assert.match(emptyHelp,/ユーザープリセット/);
+english=true;languageContext.applyEditorLanguage();
+assert.equal(emptyHelp,'Choose and edit a built-in bubble, then save it as a user preset in Properties.');
 console.log('asset_localization_test: OK (286 IDs, 190 SFX / 94 stamps)');
