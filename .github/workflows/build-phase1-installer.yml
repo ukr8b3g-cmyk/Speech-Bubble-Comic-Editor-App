@@ -1,12 +1,22 @@
-name: Build Phase 1 Windows installer
+name: Build Windows 1.0 installer
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    tags:
+      - "v1.0"
     paths:
       - ".github/workflows/build-phase1-installer.yml"
+      - "desktop_app/**"
+      - "speech_bubble_editor/**"
+      - "web/**"
+      - "tests/**"
+      - "packaging/**"
+      - "requirements*.txt"
+      - "build_release.ps1"
+      - "SpeechBubbleComicEditorApp.spec"
 
 permissions:
   contents: read
@@ -35,6 +45,23 @@ jobs:
           .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check --upgrade pip
           .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements-desktop.txt -r requirements-build.txt
 
+      - name: Verify source and regressions
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check pytest
+          .\.venv\Scripts\python.exe -m compileall -q desktop_app speech_bubble_editor
+          if ($LASTEXITCODE -ne 0) { throw "Python compile checks failed" }
+          .\.venv\Scripts\python.exe -m pytest tests -q
+          if ($LASTEXITCODE -ne 0) { throw "Python regressions failed" }
+          Get-ChildItem web -Recurse -Filter *.js | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax failed: $($_.Name)" }
+          }
+          Get-ChildItem tests -Filter '*test.cjs' | ForEach-Object {
+            node $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript regressions failed: $($_.Name)" }
+          }
+
       - name: Install Inno Setup
         shell: pwsh
         run: |
@@ -56,15 +83,15 @@ jobs:
           "path=$iscc" >> $env:GITHUB_OUTPUT
           Write-Host "Using ISCC: $iscc"
 
-      - name: Build Phase 1 installer
+      - name: Build Windows installer
         shell: pwsh
         run: |
-          .\build_release.ps1 -Version "0.1.8-phase1" -IsccPath "${{ steps.iscc.outputs.path }}" -InstallerOnly
+          .\build_release.ps1 -Version "1.0" -IsccPath "${{ steps.iscc.outputs.path }}" -InstallerOnly
 
       - name: Verify installer
         shell: pwsh
         run: |
-          $installer = "dist\release\SpeechBubbleComicEditorApp-v0.1.8-phase1-win-x64-setup.exe"
+          $installer = "dist\release\SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe"
           $checksums = "dist\release\SHA256SUMS.txt"
           if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Installer missing: $installer" }
           if (-not (Test-Path -LiteralPath $checksums -PathType Leaf)) { throw "Checksum file missing: $checksums" }
@@ -76,9 +103,9 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SpeechBubbleComicEditorApp-v0.1.8-phase1-installer
+          name: SpeechBubbleComicEditorApp-v1.0-installer
           path: |
-            dist/release/SpeechBubbleComicEditorApp-v0.1.8-phase1-win-x64-setup.exe
+            dist/release/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe
             dist/release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30

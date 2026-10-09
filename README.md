@@ -5,7 +5,7 @@
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
 
-「一枚画像」「縦4コマ漫画」「自由コミック」の3つの独立ワークスペースを備えています。吹き出し、文字、縦書き、SFX、スタンプ、フレーム、集中線を重ね、画像の配置からコマ割り、背景処理、書き出しまでを1つのアプリで行えます。
+「一枚画像」「縦4コマ漫画」と、第3の編集モード「コミック」の3つの独立ワークスペースを備えています。吹き出し、文字、縦書き、SFX、スタンプ、フレーム、集中線を重ね、画像の配置からコマ割り、背景処理、書き出しまでを1つのアプリで行えます。
 
 AI生成画像を漫画表現へ仕上げる用途を主な対象としつつ、既存のイラストや写真素材にも利用できます。ローカルで動作し、プロジェクト保存、自動復元、AI背景削除、コミック変換、背景パターン、斜め境界を含むコミックページ編集に対応しています。
 
@@ -19,11 +19,13 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ## 配布状況
 
-**Windows版 v0.1.8 を公開しています。**
+**Windows版 1.0 を公開しています。**
 
-- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
-- [v0.1.8 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v0.1.8)
-- [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SHA256SUMS.txt)
+1.0では英語UIの素材名・通知を整えました。内蔵SFXとスタンプは安定IDに対応する日英名を表示し、日本語名・英語名・キーワードで検索できます。日本語SFX画像、ユーザーの素材名と入力文、既存`.sbeproj`の形式は保持しています。
+
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe)
+- [v1.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
+- [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SHA256SUMS.txt)
 
 インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
 
@@ -31,7 +33,7 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 **通常はインストーラー版を使用してください。**
 
-- インストーラー: [SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe)
+- インストーラー: [SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
 - ソース版の初回起動: `setup_and_start.cmd`
 - ソース版の2回目以降: `start.cmd`

@@ -16,6 +16,7 @@
     ) {
       const headers = new Headers(options.headers || (input instanceof Request ? input.headers : undefined));
       headers.set("X-SBE-Token", token);
+      headers.set("X-SBE-Language", document.documentElement.lang === "en" ? "en" : "ja");
       return nativeFetch(input, { ...options, headers });
     }
     return nativeFetch(input, options);
@@ -47,7 +48,7 @@
     dialog.className = "document-dialog desktop-settings-dialog";
     dialog.innerHTML = `
       <div class="desktop-settings-head">
-        <strong>Speech Bubble Comic Editor App 設定</strong>
+        <strong>Speech Bubble Comic Editor App 1.0 設定</strong>
         <button type="button" data-desktop-action="settings-close" aria-label="設定を閉じる">×</button>
       </div>
       <div class="desktop-settings-scroll">
@@ -665,7 +666,7 @@
     const style = collectUserPresetStyle(dialog);
     let name = dialog.querySelector('[data-user-preset-field="name"]').value.trim();
     const category = dialog.querySelector('[data-user-preset-field="category"]').value;
-    if (!name) throw new Error("名前を入力してください。");
+    if (!name) throw new Error(desktopText("名前を入力してください。","Enter a name."));
     if (saveAs) {
       name = prompt("別名で保存", `${name} copy`)?.trim() || "";
       if (!name) return;
@@ -689,12 +690,12 @@
       } catch (error) {
         if (error.code !== "duplicate_name") throw error;
         const existing = (userPresetCatalog?.presets || []).find((preset) => preset.id === error.existingId);
-        if (existing && confirm(`同じ名前のプリセットがあります。\n種類: ${existing.category === "stamp" ? "Stamp" : "SFX"}\n名前: ${existing.name}\n\n既存プリセットを編集しますか？`)) {
+        if (existing && confirm(desktopText(`同じ名前のプリセットがあります。\n種類: ${existing.category === "stamp" ? "Stamp" : "SFX"}\n名前: ${existing.name}\n\n既存プリセットを編集しますか？`,`A preset with this name already exists.\nType: ${existing.category === "stamp" ? "Stamp" : "SFX"}\nName: ${existing.name}\n\nEdit the existing preset?`))) {
           editUserPreset(dialog, existing);
           renderUserPresets(dialog);
           return;
         }
-        throw new Error("別の名前を入力してください。");
+        throw new Error(desktopText("別の名前を入力してください。","Enter a different name."));
       }
       releaseUserPresetDraftUrl();
       selectedUserPreset = null;
@@ -735,7 +736,7 @@
   }
 
   async function deleteUserPreset(dialog) {
-    if (!selectedUserPreset || selectedUserPreset.__draft || !confirm(`「${selectedUserPreset.name}」を削除しますか？`)) return;
+    if (!selectedUserPreset || selectedUserPreset.__draft || !confirm(desktopText(`「${selectedUserPreset.name}」を削除しますか？`,`Delete “${selectedUserPreset.name}”?`))) return;
     await userAssetFetch(`/${selectedUserPreset.id}`, { method: "DELETE" });
     selectedUserPreset = null;
     await root.SpeechBubbleDesktopEditor?.refreshUserAssets?.();
@@ -829,7 +830,7 @@
         });
       }
     } else if (!path) {
-      throw new Error("設定の出力フォルダーを指定してください。");
+      throw new Error(desktopText("設定の出力フォルダーを指定してください。","Set the output folder in Settings."));
     }
     return { path: await validateExportDirectory(path) };
   }
@@ -980,7 +981,9 @@
   }
 
   const DESKTOP_EN_TEXT = new Map([
-    ["Speech Bubble Comic Editor App 設定", "Speech Bubble Comic Editor App Settings"],
+    ["Speech Bubble Comic Editor App 1.0 設定", "Speech Bubble Comic Editor App 1.0 Settings"],
+    ["簡易レタッチを開く", "Open Quick Retouch"],
+    ["文字枠を内容に合わせる", "Fit Text Box to Content"],
     ["表示", "Appearance"],
     ["テーマ", "Theme"],
     ["システム", "System"],
@@ -1239,21 +1242,22 @@
       while (walker.nextNode()) {
         const node = walker.currentNode;
         const parent = node.parentElement;
-        if (!parent || parent.closest("script,style,textarea,.layers .name,.font-family-name,.font-sample,.comic-image-card > span")) continue;
+        if (!parent || parent.closest("script,style,textarea,.sfx-card,.shape-name,.user-shape-card,.layers .name,.font-family-name,.font-sample,.comic-image-card > span")) continue;
         if (node.__desktopOriginalText === undefined) node.__desktopOriginalText = node.nodeValue;
         const original = node.__desktopOriginalText;
         const trimmed = original.trim();
-        const translated = english ? DESKTOP_EN_TEXT.get(trimmed) || dynamicEnglish(trimmed) : null;
+        const translated = english ? DESKTOP_EN_TEXT.get(trimmed) || root.SpeechBubbleEditorTranslations?.find(pair => pair[0] === trimmed)?.[1] || dynamicEnglish(trimmed) : null;
         const next = translated ? original.replace(trimmed, translated) : original;
         if (node.nodeValue !== next) node.nodeValue = next;
       }
       for (const element of dialog.querySelectorAll("[title],[aria-label],[placeholder]")) {
+        if (element.closest(".sfx-card,.shape-name,.user-shape-card,.layers .name,.font-family-name,.font-sample")) continue;
         for (const attribute of ["title", "aria-label", "placeholder"]) {
           if (!element.hasAttribute(attribute)) continue;
           const property = `desktopOriginal${attribute.replace(/(^|-)([a-z])/g, (_all, _dash, letter) => letter.toUpperCase())}`;
           if (element.dataset[property] === undefined) element.dataset[property] = element.getAttribute(attribute) || "";
           const original = element.dataset[property];
-          const translated = english ? DESKTOP_EN_TEXT.get(original) || dynamicEnglish(original) : "";
+          const translated = english ? DESKTOP_EN_TEXT.get(original) || root.SpeechBubbleEditorTranslations?.find(pair => pair[0] === original)?.[1] || dynamicEnglish(original) : "";
           const next = translated || original;
           if (element.getAttribute(attribute) !== next) element.setAttribute(attribute, next);
         }
@@ -1394,7 +1398,7 @@
 
   async function saveProject() {
     const api = nativeApi();
-    if (!api?.choose_project_save) throw new Error("プロジェクト保存はDesktopウィンドウから実行してください。");
+    if (!api?.choose_project_save) throw new Error(desktopText("プロジェクト保存はDesktopウィンドウから実行してください。","Save the project from the Desktop window."));
     const path = await api.choose_project_save();
     if (!path) return false;
     const snapshot = await root.SpeechBubbleDesktopEditor.snapshot();
@@ -1404,7 +1408,7 @@
     });
     const saved = await root.SpeechBubbleDesktopEditor.markProjectSaved?.(path, JSON.stringify(snapshot.layout));
     if (saved === false) throw new Error("Project changed while it was being saved; save again.");
-    root.SpeechBubbleDesktopEditor.setStatus(`${path} を保存しました`, "saved");
+    root.SpeechBubbleDesktopEditor.setStatus(desktopText(`${path} を保存しました`,`Saved ${path}`), "saved");
     return Boolean(result !== false);
   }
 
@@ -1413,7 +1417,7 @@
       const dialog = document.createElement("dialog");
       dialog.className = "document-dialog";
       const creating = purpose === "new";
-      dialog.innerHTML = `<form method="dialog"><h3>${creating ? "新規プロジェクトを作成しますか？" : "アプリを終了しますか？"}</h3><p>未保存の変更があります。</p><div class="replace-dialog-actions"><button value="cancel">キャンセル</button><button value="discard">${creating ? "保存せず作成" : "保存せず終了"}</button><button class="primary" value="save">${creating ? "保存して作成" : "保存して終了"}</button></div></form>`;
+      dialog.innerHTML = `<form method="dialog"><h3>${creating ? desktopText("新規プロジェクトを作成しますか？","Create a new project?") : desktopText("アプリを終了しますか？","Close the app?")}</h3><p>${desktopText("未保存の変更があります。","There are unsaved changes.")}</p><div class="replace-dialog-actions"><button value="cancel">${desktopText("キャンセル","Cancel")}</button><button value="discard">${creating ? desktopText("保存せず作成","Discard & Create") : desktopText("保存せず終了","Discard & Close")}</button><button class="primary" value="save">${creating ? desktopText("保存して作成","Save & Create") : desktopText("保存して終了","Save & Close")}</button></div></form>`;
       document.body.append(dialog);
       dialog.addEventListener("close", () => { const value = dialog.returnValue || "cancel"; dialog.remove(); resolve(value); }, { once: true });
       dialog.addEventListener("cancel", (event) => { event.preventDefault(); dialog.close("cancel"); });
@@ -1435,7 +1439,7 @@
 
   async function openProject() {
     const api = nativeApi();
-    if (!api?.choose_project_open) throw new Error("プロジェクト読込はDesktopウィンドウから実行してください。");
+    if (!api?.choose_project_open) throw new Error(desktopText("プロジェクト読込はDesktopウィンドウから実行してください。","Open the project from the Desktop window."));
     const path = await api.choose_project_open();
     if (!path) return;
     const payload = await desktopFetch("/desktop/project/open", {
@@ -1452,8 +1456,8 @@
     }
     root.SpeechBubbleDesktopEditor.setStatus(
       recoveryUpdated
-        ? `${path} を開きました`
-        : "プロジェクトは開きましたが、復元ポイントを更新できませんでした",
+        ? desktopText(`${path} を開きました`,`Opened ${path}`)
+        : desktopText("プロジェクトは開きましたが、復元ポイントを更新できませんでした","Project opened, but the recovery checkpoint could not be updated"),
       recoveryUpdated ? "saved" : "error",
     );
   }
@@ -1500,7 +1504,7 @@
     const addPresetFile = async (file) => {
       if (!file) return;
       if (!["image/png", "image/webp"].includes(file.type) && !/\.(png|webp)$/i.test(file.name || "")) {
-        throw new Error("PNGまたはWebPを選択してください。");
+        throw new Error(desktopText("PNGまたはWebPを選択してください。","Choose a PNG or WebP image."));
       }
       if (settings.open) settings.close();
       if (!userPresets.open) userPresets.showModal();
@@ -1513,7 +1517,7 @@
         await addPresetFile(file);
       } catch (error) {
         console.error("User preset add failed", error);
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "ユーザープリセットを追加できませんでした", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("ユーザープリセットを追加できませんでした","Could not add the user preset"), "error");
       }
     });
     const dropTarget = settings.querySelector("[data-user-preset-drop]");
@@ -1532,7 +1536,7 @@
       try {
         await addPresetFile(Array.from(event.dataTransfer?.files || [])[0]);
       } catch (error) {
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "ユーザープリセットを追加できませんでした", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("ユーザープリセットを追加できませんでした","Could not add the user preset"), "error");
       }
     });
     dropTarget.addEventListener("keydown", (event) => {
@@ -1548,7 +1552,7 @@
         await replaceUserPresetImage(userPresets, file);
       } catch (error) {
         console.error("User preset image replace failed", error);
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "プリセット画像を差し替えできませんでした", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("プリセット画像を差し替えできませんでした","Could not replace the preset image"), "error");
       }
     });
     settings.addEventListener("input", (event) => {
@@ -1561,7 +1565,7 @@
       try {
         await desktopFetch("/desktop/config", { method: "PUT", body: JSON.stringify({ [key]: event.target.value }) });
       } catch (error) {
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "表示設定を保存できませんでした", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("表示設定を保存できませんでした","Could not save display settings"), "error");
       }
     });
     document.addEventListener("paste", async (event) => {
@@ -1574,7 +1578,7 @@
       try {
         await addPresetFile(file);
       } catch (error) {
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "貼り付け画像を登録できませんでした", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("貼り付け画像を登録できませんでした","Could not register the pasted image"), "error");
       }
     });
     applyLanguage(params.get("language"));
@@ -1642,7 +1646,7 @@
         }
       } catch (error) {
         console.error("Speech Bubble Desktop action failed", error);
-        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "Desktop操作に失敗しました", "error");
+        root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("Desktop操作に失敗しました","Desktop operation failed"), "error");
       }
     });
     document.addEventListener("keydown", (event) => {
@@ -1650,7 +1654,7 @@
       if (!event.ctrlKey || event.altKey || event.metaKey || event.key.toLowerCase() !== "n") return;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(active?.tagName) || active?.isContentEditable) return;
       event.preventDefault();
-      requestNewProject().catch((error) => root.SpeechBubbleDesktopEditor?.setStatus(error?.message || "新規プロジェクトを作成できませんでした", "error"));
+      requestNewProject().catch((error) => root.SpeechBubbleDesktopEditor?.setStatus(error?.message || desktopText("新規プロジェクトを作成できませんでした","Could not create a new project"), "error"));
     });
     window.addEventListener("speech-bubble:bubble-presets-change", () => refreshBubblePresetManager(settings));
   }

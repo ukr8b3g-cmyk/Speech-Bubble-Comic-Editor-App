@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.8",
+    [string]$Version = "1.0",
     [string]$IsccPath = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
     [switch]$InstallerOnly
 )
@@ -12,8 +12,8 @@ $portableZip = Join-Path $releaseDir "SpeechBubbleComicEditorApp-v$Version-win-x
 $installer = Join-Path $releaseDir "SpeechBubbleComicEditorApp-v$Version-win-x64-setup.exe"
 $checksums = Join-Path $releaseDir "SHA256SUMS.txt"
 
-if ($Version -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
-    throw "Version must use semantic version format, for example 0.1.0."
+if ($Version -notmatch '^\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$') {
+    throw "Version must use release format, for example 1.0 or 1.0.0."
 }
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $shortBuildRoot = Join-Path $tempRoot "SBE-v$Version-build"
@@ -59,7 +59,8 @@ try {
         Compress-Archive -LiteralPath $portableDir -DestinationPath $portableZip -CompressionLevel Optimal
     }
 
-    $windowsVersion = (($Version -replace '[-+].*$', '') + '.0')
+    $versionParts = ($Version -replace '[-+].*$', '').Split('.')
+    $windowsVersion = if ($versionParts.Count -eq 2) { "$Version.0.0" } else { ($versionParts -join '.') + '.0' }
     & $IsccPath "/DMyAppVersion=$Version" "/DMyAppWindowsVersion=$windowsVersion" "/DMySourceDir=$portableDir" (Join-Path $root "packaging\SpeechBubbleComicEditorApp.iss")
     if ($LASTEXITCODE -ne 0) {
         throw "Installer build failed with exit code $LASTEXITCODE."

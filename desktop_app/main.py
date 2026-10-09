@@ -12,6 +12,7 @@ import webbrowser
 from .paths import DesktopPaths, resource_root
 from .runtime import ServerRuntime, free_loopback_port
 from .server import create_app
+from .version import APP_DISPLAY_VERSION
 
 _INSTANCE_MUTEX = None
 _ACTIVATE_EVENT = None
@@ -327,7 +328,7 @@ class DesktopBridge:
         if bool(cancelled):
             return False
         if not bool(ok):
-            self._native_close_error(str(message or "終了前の保存に失敗しました。"))
+            self._native_close_error(str(message or "Could not save before closing."))
             return False
         self.save_window_state()
         self._close_approved = True
@@ -502,7 +503,7 @@ class DesktopBridge:
                 self._palette_window = None
         separator = "&" if "?" in self.app_url else "?"
         palette = self._webview.create_window(
-            f"{APP_NAME} - Properties / Layers",
+            f"{APP_NAME} {APP_DISPLAY_VERSION} - Properties / Layers",
             url=f"{self.app_url}{separator}palette=1",
             js_api=self,
             width=width,
@@ -556,7 +557,7 @@ def run() -> int:
         if sys.platform == "win32":
             ctypes.windll.user32.MessageBoxW(
                 None,
-                f"{APP_NAME} はすでに起動しています。",
+                f"{APP_NAME} is already running.",
                 APP_NAME,
                 0x40,
             )
@@ -595,7 +596,7 @@ def run() -> int:
         bridge.folder_dialog = webview.FOLDER_DIALOG
         bridge.save_dialog = webview.SAVE_DIALOG
         window = webview.create_window(
-            APP_NAME,
+            f"{APP_NAME} {APP_DISPLAY_VERSION}",
             url=url,
             js_api=bridge,
             width=geometry["width"],

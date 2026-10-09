@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from speech_bubble_editor.api import register_routes
 
@@ -17,6 +18,7 @@ from .project_store import ProjectStore
 from .recent_projects import RecentProjects
 from .recovery_store import RecoveryStore
 from .settings_store import SettingsStore
+from .localization import localized_error
 
 
 def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
@@ -31,6 +33,13 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
     app.state.desktop_launch_token = token
     app.state.background_removal = background_removal
     register_routes(app)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def localized_http_error(request: Request, error: StarletteHTTPException):
+        language = request.headers.get("X-SBE-Language") or settings.load().get("language", "auto")
+        return JSONResponse(status_code=error.status_code,
+                            content={"detail": localized_error(error.detail, language)},
+                            headers=error.headers)
 
     @app.middleware("http")
     async def protect_desktop_api(request: Request, call_next):
@@ -79,7 +88,10 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
     @app.get("/desktop/background-removal/model")
     async def background_removal_model_status(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)
-        return background_removal.status()
+        status = background_removal.status()
+        if status.get("error"):
+            status["error"] = localized_error(status["error"], settings.load().get("language", "auto"))
+        return status
 
     @app.post("/desktop/background-removal/model/download")
     async def background_removal_model_download(request: Request, x_sbe_token: str = Header(default="")):

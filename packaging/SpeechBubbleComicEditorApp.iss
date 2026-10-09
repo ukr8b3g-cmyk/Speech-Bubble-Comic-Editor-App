@@ -1,8 +1,8 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.8"
+  #define MyAppVersion "1.0"
 #endif
 #ifndef MyAppWindowsVersion
-  #define MyAppWindowsVersion "0.1.8.0"
+  #define MyAppWindowsVersion "1.0.0.0"
 #endif
 #ifndef MySourceDir
   #define MySourceDir "..\dist\SpeechBubbleComicEditorApp"
