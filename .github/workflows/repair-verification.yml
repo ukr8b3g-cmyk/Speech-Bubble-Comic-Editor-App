@@ -1,0 +1,31 @@
+name: Save integrity repair verification
+on:
+  push:
+    branches: [fix/save-integrity-20261015]
+    paths: [.github/workflows/repair-verification.yml]
+permissions:
+  contents: read
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3f7bb2898f24810c5dd7a255d3000045736281da
+      - name: Archive the audited source without git data
+        run: |
+          git status --porcelain
+          git rev-parse HEAD > source-head.txt
+          git ls-tree -r --full-tree HEAD > source-tree.txt
+          git archive --format=zip --output=source.zip HEAD
+          sha256sum source.zip > source-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audited-source-3f7bb289
+          path: |
+            source.zip
+            source-head.txt
+            source-tree.txt
+            source-sha256.txt
+          retention-days: 7
+          if-no-files-found: error
