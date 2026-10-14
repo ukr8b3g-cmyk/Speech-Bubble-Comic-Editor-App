@@ -1,0 +1,174 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a new release after validation (never overwrite a release)
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - '.github/workflows/build-phase1-installer.yml'
+      - 'desktop_app/**'
+      - 'speech_bubble_editor/**'
+      - 'web/**'
+      - 'tests/**'
+      - 'packaging/**'
+      - 'requirements*.txt'
+      - 'build_release.ps1'
+      - 'SpeechBubbleComicEditorApp.spec'
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements-desktop.txt
+            requirements-build.txt
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = python -c "from desktop_app.version import APP_DISPLAY_VERSION; print(APP_DISPLAY_VERSION)"
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -ne "v$version") { throw 'Tag and app version differ' }
+      - name: Create build environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements-desktop.txt -r requirements-build.txt pytest httpx playwright==1.57.0
+          if ($LASTEXITCODE -ne 0) { throw 'Build dependency installation failed' }
+      - name: Verify source and regressions
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m compileall -q desktop_app speech_bubble_editor
+          if ($LASTEXITCODE -ne 0) { throw 'Python compile checks failed' }
+          .\.venv\Scripts\python.exe -m pytest tests -q --junitxml=python-tests.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Python regressions failed' }
+          Get-ChildItem web -Recurse -Filter *.js | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax failed: $($_.Name)" }
+          }
+          Get-ChildItem tests -Filter '*test.cjs' | ForEach-Object {
+            node $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript regressions failed: $($_.Name)" }
+          }
+      - name: Chromium and Desktop HTTP acceptance
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed' }
+          $driver = .\.venv\Scripts\python.exe -c "import pathlib,playwright; print(pathlib.Path(playwright.__file__).parent/'driver'/'package')"
+          $modules = Join-Path $env:RUNNER_TEMP 'sbe-test-node'
+          New-Item -ItemType Directory -Force $modules | Out-Null
+          New-Item -ItemType Junction -Path (Join-Path $modules 'playwright') -Target $driver | Out-Null
+          $env:NODE_PATH = $modules
+          node -e "require('playwright').chromium || process.exit(1)"
+          if ($LASTEXITCODE -ne 0) { throw 'Browser test driver missing' }
+          Get-ChildItem tests -Filter '*browser_smoke.cjs' | ForEach-Object {
+            node $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Browser regression failed: $($_.Name)" }
+          }
+          .\.venv\Scripts\python.exe tests/desktop_save_browser_smoke.py
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop save-integrity browser checks failed' }
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows distributions
+        shell: pwsh
+        run: |
+          $candidates = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe', 'C:\Program Files\Inno Setup 6\ISCC.exe')
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $iscc) { throw 'Inno Setup compiler not found' }
+          .\build_release.ps1 -Version '${{ steps.version.outputs.version }}' -IsccPath $iscc
+      - name: Verify hashes and silent setup install/uninstall
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $installer = (Resolve-Path "dist/release/SpeechBubbleComicEditorApp-v$version-win-x64-setup.exe").Path
+          if ((Get-Item $installer).Length -lt 1048576) { throw 'Installer is unexpectedly small' }
+          foreach ($line in Get-Content 'dist/release/SHA256SUMS.txt') {
+            $hash, $name = $line -split '  ', 2
+            if ((Get-FileHash -Algorithm SHA256 (Join-Path 'dist/release' $name)).Hash.ToLowerInvariant() -ne $hash) { throw "Checksum mismatch: $name" }
+          }
+          if ((Get-Item $installer).VersionInfo.FileVersion -ne "$version.0") { throw 'Setup version mismatch' }
+          $target = Join-Path $env:RUNNER_TEMP 'sbe-install-acceptance'
+          $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/DIR=`"$target`"") -PassThru
+          if (-not $process.WaitForExit(120000) -or $process.ExitCode -ne 0) { throw 'Silent setup failed' }
+          $exe = Join-Path $target 'SpeechBubbleComicEditorApp.exe'
+          if (-not (Test-Path $exe)) { throw 'Installed executable missing' }
+          if ((Get-Item $exe).VersionInfo.FileVersion -ne "$version.0") { throw 'App version mismatch' }
+          $help = Start-Process -FilePath $exe -ArgumentList '--help' -PassThru
+          if (-not $help.WaitForExit(30000)) { $help.Kill(); throw 'Packaged import/help check timed out' }
+          if ($help.ExitCode -ne 0) { throw 'Packaged import/help check failed' }
+          $uninstaller = Join-Path $target 'unins000.exe'
+          $process = Start-Process $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru
+          if (-not $process.WaitForExit(120000) -or $process.ExitCode -ne 0) { throw 'Silent uninstall failed' }
+          if (Test-Path $exe) { throw 'Installed executable remains after uninstall' }
+          '${{ github.sha }}' | Set-Content dist/release/SOURCE_COMMIT.txt -Encoding ascii
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeechBubbleComicEditorApp-v${{ steps.version.outputs.version }}-release
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-python-results
+          path: python-tests.xml
+
+  publish:
+    needs: build-installer
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish) ||
+      (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-release]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ needs.build-installer.outputs.version }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: SpeechBubbleComicEditorApp-v${{ needs.build-installer.outputs.version }}-release
+          path: release
+      - name: Publish new immutable-by-policy release (no overwrites)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build-installer.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum -c SHA256SUMS.txt
+          test "$(tr -d '\r\n' < SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
+          cd ..
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace it: $tag" >&2; exit 1
+          fi
+          notes="docs/releases/$tag.md"
+          test -f "$notes"
+          gh release create "$tag" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Speech Bubble Comic Editor App $VERSION" --notes-file "$notes"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
