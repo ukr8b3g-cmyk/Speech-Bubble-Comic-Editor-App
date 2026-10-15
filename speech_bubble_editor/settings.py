@@ -48,6 +48,7 @@ _DESKTOP_SETTING_KEYS = {
     "speech_bubble_editor_supersample": "supersample",
     "speech_bubble_editor_keep_previous_layout": "auto_save",
     "speech_bubble_editor_save_overlay": "save_overlay",
+    "speech_bubble_editor_save_overlay_v2": "save_overlay",
 }
 
 
