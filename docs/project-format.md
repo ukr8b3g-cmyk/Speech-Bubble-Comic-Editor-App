@@ -23,7 +23,7 @@ manifest keeps the logical image IDs that are referenced from the layout.
 | Comic state | 1 | Current vertical four-panel state |
 | General comic state | 1 | Free panel layout stored in the Comic workspace |
 | Recovery record | 1 | Autosave record format |
-| Application | 1.0.0 | Application release recorded in new manifests; UI display is 1.0 |
+| Application | 1.0.1 | Application release recorded in new manifests; UI display is 1.0.1 |
 
 The archive version changes only when the ZIP file layout changes.  A layout
 or comic data-model change uses its respective schema version instead.

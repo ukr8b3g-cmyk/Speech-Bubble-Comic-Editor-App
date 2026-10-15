@@ -1,7 +1,7 @@
 
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 
-# Speech Bubble Comic Editor App 1.0
+# Speech Bubble Comic Editor App 1.0.1
 
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
@@ -22,14 +22,23 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ## 配布状況
 
-**Windows x64版 1.0 を公開しています。** アプリ・セットアップの表示は1.0、パッケージとプロジェクトに記録するアプリバージョンは1.0.0です。
+**最新版：Windows x64版 1.0.1（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.0.1です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
 
-1.0では英語UIの素材名・通知を整えました。内蔵SFXとスタンプは安定IDに対応する日英名を表示し、日本語名・英語名・キーワードで検索できます。日本語SFX画像、ユーザーの素材名と入力文、既存`.sbeproj`の形式は保持しています。
+1.0.1では保存・読込のデータ保護、プロジェクト切替時の確認、外部パレットの編集同期、カスタムスタンプの同梱、Overlay PNG設定を修正しました。1.0で追加した日本語／英語UIと素材検索も引き続き利用できます。
 
-- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe)
-- [ZIP版をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-portable.zip)
-- [v1.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
-- [SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SHA256SUMS.txt)
+**最新版 1.0.1（Windows x64）**
+
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe)
+- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-portable.zip)
+- [v1.0.1 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.1)
+- [v1.0.1 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SHA256SUMS.txt)
+
+**旧バージョン（削除せず引き続き配布）**
+
+- v1.0: [Installer EXE](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe) / [Portable ZIP](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-portable.zip) / [Release](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
+- v0.1.8: [Installer EXE](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe) / [Release](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v0.1.8)
+
+※ v1.0以前の配布ファイルは不変です。既存のプロジェクトを安全のためバックアップしてから更新してください。
 
 インストーラー版はPythonや`.venv`を別途用意せず起動できます。ソースから実行する場合だけ専用`.venv`を使用します。
 
@@ -45,7 +54,7 @@ Settingsで日本語／英語を切り替えられます。1.0では内蔵SFX 19
 
 **通常はインストーラー版を使用してください。**
 
-- インストーラー: [SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe)
+- インストーラー: [SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
 - ソース版の初回起動: `setup_and_start.cmd`
 - ソース版の2回目以降: `start.cmd`
@@ -407,7 +416,7 @@ Properties／Layersの位置と大きさは自動保存されます。標準配�
 
 Settingsで固定の出力先を指定できます。毎回保存先を選択する設定にした場合は、Export Imageのたびに保存先を選びます。
 
-## 現在の制限と1.0の検証範囲
+## 現在の制限と検証範囲
 
 - 内蔵素材の表示名は日英対応ですが、オノマトペ／SFX・スタンプの英語版画像は未制作です。
 - フォントファイルはプロジェクトに埋め込みません。別PCでは使用フォントの導入が必要です。
@@ -415,7 +424,9 @@ Settingsで固定の出力先を指定できます。毎回保存先を選択す
 - キャンバス背景パターンのユーザープリセット保存は未対応です。
 - AI背景削除は初回にモデルの取得が必要です。取得後の推論はローカルCPUで行います。
 
-1.0の配布EXEでは、起動、日英切替、SFX・文字編集、`.sbeproj`の保存・再読込、PNG出力を確認しています。セットアップEXEはビルドとバージョン・公開ファイルの照合を確認済みです。インストーラーによるインストール／アンインストールとネイティブファイル選択ダイアログは、このリリースの自動検証では実行していません。検証の詳細は[v1.0のリリース説明](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)に記載しています。
+1.0.1ではWindows CIでPython・JavaScript回帰テスト、インストーラーとZIPのビルド、SHA-256検証を実施しています。クリーンなWindows環境でのインストール／更新／アンインストール、ネイティブのファイル選択、WebView2の実GUI操作は、この1.0.1の自動検証には含まれません。詳細は[v1.0.1リリースノート](docs/release-1.0.1.md)を参照してください。
+
+旧1.0の配布EXEでは、起動、日英切替、SFX・文字編集、`.sbeproj`の保存・再読込、PNG出力を確認しています。セットアップEXEはビルドとバージョン・公開ファイルの照合を確認済みです。インストーラーによるインストール／アンインストールとネイティブファイル選択ダイアログは、このリリースの自動検証では実行していません。検証の詳細は[v1.0のリリース説明](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)に記載しています。
 
 ## HTML
 
@@ -427,7 +438,7 @@ EditorのUIソースは`web\speech-bubble-editor.html`ですが、直接表示�
 
 ソース版を`python -m desktop_app.main --portable`で起動した場合はリポジトリ内の`data`を使用します。配布EXEを`SpeechBubbleComicEditorApp.exe --portable`で起動した場合は、展開先の`_internal\data`を使用します。
 
-保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.0という値と、保存形式のバージョンは別に管理しています。
+保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.1という値と、保存形式のバージョンは別に管理しています。
 
 ## 問い合わせ・不具合報告
 
