@@ -74,6 +74,7 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
                 "startupBehavior": configured.get("startup_behavior", "ask"),
                 "showEmptyCanvasGuide": "1" if configured.get("show_empty_canvas_guide", False) else "0",
                 "sharedProjectImages": "1" if configured.get("shared_project_images", True) else "0",
+                "saveOverlay": "1" if configured.get("save_overlay", False) else "0",
                 "theme": configured.get("theme", "system"),
                 "language": configured.get("language", "auto"),
             }

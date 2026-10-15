@@ -861,7 +861,7 @@
     const dateSubfolder = params.get("dateSubfolder") || "none";
     const backupEnabled = params.get("backupEnabled") !== "0";
     const backupGenerations = Math.max(1,Math.min(20,Number(params.get("backupGenerations"))||5));
-    const saveOverlay = params.get("saveOverlay") === "1";
+    let saveOverlay = params.get("saveOverlay") === "1";
     const exportTransport = params.get("exportTransport") || "legacy_json_v1";
     const assetCacheVersion = params.get("assetVersion") || "20260802-04";
     const SAVED_LAYOUT_PREFIX = "speech-bubble/layout/";
@@ -915,6 +915,24 @@
     const SINGLE_IMAGE_ASSET_PREFIX="single-image:";
     const PROJECT_IMAGE_ASSET_PREFIX="project-image:";
     const singleImageAssets=new Map(),pageImageAssets=new Map();
+    const PROJECT_USER_ASSET_PREFIX="user-asset:";
+    const embeddedUserAssets=new Map();
+    function clearEmbeddedUserAssets(){
+      for(const asset of embeddedUserAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);
+      embeddedUserAssets.clear();
+      clearSfxAssetCaches();
+    }
+    function userAssetIdsInLayout(layout){
+      const ids=new Set();
+      const visit=items=>{for(const item of items||[]){
+        if(item?.type!=="sfx"&&item?.type!=="sfx_stamp")continue;
+        const assetId=String(item.user_asset_id||"").replace(/^user:/,"").toLowerCase();
+        if(/^[a-f0-9]{64}$/.test(assetId))ids.add(assetId);
+      }};
+      for(const workspace of Object.values(layout?.workspaces||{}))visit(workspace?.elements);
+      visit(layout?.elements);
+      return [...ids];
+    }
     let primarySingleImageAssetId="",lastSingleProcessingLayerId="",pendingImageLayerReplacementId="";
     function clearSingleImageAssets(){for(const asset of singleImageAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);singleImageAssets.clear();primarySingleImageAssetId="";lastSingleProcessingLayerId="";}
     function clearPageImageAssets(){for(const asset of pageImageAssets.values())if(asset.url)URL.revokeObjectURL(asset.url);pageImageAssets.clear();}
@@ -1986,7 +2004,12 @@
       return item;
     }
     function defaultText() { const item={ id:id(), type:"text", x:600, y:150, w:320, h:80, text:uiText("こんにちは","Hello!"), writing:"horizontal", align:"center", font_path:"", font_id:"", font_family:"sans-serif", font_css_family:"sans-serif", font_size:54, tracking:0, font_scale_x:100, font_scale_y:100, rotation:0, auto_fit:true, color:"#111111", stroke_width:0, stroke_color:"#ffffff", bold:false, italic:false, underline:false, strikethrough:false, shadow_enabled:false, shadow_color:"#000000", shadow_x:6, shadow_y:6, shadow_blur:4, visible:true }; fitTextBox(item); return item; }
-    function versionedSfxSrc(src){if(!src)return src;return `${src}${String(src).includes("?")?"&":"?"}v=${SFX_ASSET_VERSION}`;}
+    function versionedSfxSrc(src){if(!src||String(src).startsWith("blob:"))return src;return `${src}${String(src).includes("?")?"&":"?"}v=${SFX_ASSET_VERSION}`;}
+    function userAssetImageSource(userAssetId){
+      const id=String(userAssetId||"").replace(/^user:/,"").toLowerCase();
+      if(!/^[a-f0-9]{64}$/.test(id))return"";
+      return embeddedUserAssets.get(id)?.url||authenticatedAssetUrl(`${forgeApiBase}/user-assets/asset/${id}`);
+    }
     function sfxPresetFill(preset){if(!preset?.mask)return preset?.fill||"#111111";if(isComicStamp(preset)){if(String(preset.id||"").startsWith("arrow-"))return"#e53935";return COMIC_STAMP_FILLS.get(preset.id)||"#ffffff";}return preset.fill||(preset.category==="japanese"?COMIC_YELLOW:"#ffffff");}
     const compactSwatchTargets={text:"color",bubble:"fill",frame:"border_color",asset:"fill",emphasis:"color",shadow:"shadow_color",glow:"glow_color"};
     function compactSwatchDefinition(type){if(type==="text")return{host:"textColorSwatches",keys:["color","stroke_color"]};if(type==="frame")return{host:"frameColorSwatches",keys:["border_color","inner_stroke_color"]};if(type==="asset")return{host:"sfxColorSwatches",keys:["fill","stroke"]};if(type==="emphasis")return{host:"emphasisColorSwatches",keys:["color"]};if(type==="shadow")return{host:"shadowColorSwatches",keys:["shadow_color"]};if(type==="glow")return{host:"glowColorSwatches",keys:["glow_color"]};return{host:"bubbleColorSwatches",keys:["fill","stroke"]};}
@@ -2006,7 +2029,7 @@
     function sfxDefaultOutlineWidth(preset){const presetId=String(preset?.id||"");return presetId.startsWith("arrow-")||presetId.includes("heart")?0:3;}
     function basicSymbolKindFor(item){const kind=SFX_BY_ID.get(item?.asset_id)?.symbolKind;return ["circle","triangle","square","trapezoid"].includes(kind)?kind:"";}
     function normalizeBasicSymbolSettings(item){const kind=basicSymbolKindFor(item);if(kind==="trapezoid")item.symbol_top_width=normalizeNumericValue("symbol_top_width",item.symbol_top_width,100);if(kind==="square")item.symbol_skew=normalizeNumericValue("symbol_skew",item.symbol_skew,0);return kind;}
-    function defaultSfx(presetId="don-exclamation-mask") { const preset=SFX_BY_ID.get(presetId)||SFX_PRESETS[0],style=preset.userPreset?(preset.styleDefaults||normalizeUserAssetStyle({},preset.w,preset.h)):null,mask=style?style.mask_mode:!!preset.mask,presetOutline=style?style.stroke_width:(Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?sfxDefaultOutlineWidth(preset):0)),item={id:id(),type:"sfx",asset_id:preset.id,asset_label:preset.label,asset_format:preset.format,asset_src:preset.src,asset_width:preset.w,asset_height:preset.h,user_preset_id:preset.userPresetId||"",user_asset_id:preset.userAssetId||"",mask_mode:mask,user_fill_initialized:!preset.userPreset||mask,fill:style?style.fill:sfxPresetFill(preset),stroke:style?style.stroke:(preset.stroke||"#111111"),stroke_width:presetOutline,x:0,y:0,w:style?style.width:preset.w,h:style?style.height:preset.h,rotation:0,opacity:style?style.opacity:1,shadow_enabled:style?style.shadow_enabled:false,shadow_color:style?style.shadow_color:"#000000",shadow_x:style?style.shadow_x:6,shadow_y:style?style.shadow_y:6,shadow_blur:style?style.shadow_blur:4,glow_enabled:style?style.glow_enabled:false,glow_color:style?style.glow_color:"#ffffff",glow_opacity:style?style.glow_opacity:.75,glow_blur:style?style.glow_blur:16,glow_spread:style?style.glow_spread:0,visible:true};if(preset.symbolKind==="trapezoid")item.symbol_top_width=100;if(preset.symbolKind==="square")item.symbol_skew=0;return item; }
+    function defaultSfx(presetId="don-exclamation-mask") { const preset=SFX_BY_ID.get(presetId)||SFX_PRESETS[0],style=preset.userPreset?(preset.styleDefaults||normalizeUserAssetStyle({},preset.w,preset.h)):null,mask=style?style.mask_mode:!!preset.mask,presetOutline=style?style.stroke_width:(Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?sfxDefaultOutlineWidth(preset):0)),item={id:id(),type:"sfx",asset_id:preset.id,asset_label:preset.label,asset_format:preset.format,asset_src:preset.userAssetId?`${forgeApiBase}/user-assets/asset/${preset.userAssetId}`:preset.src,asset_width:preset.w,asset_height:preset.h,user_preset_id:preset.userPresetId||"",user_asset_id:preset.userAssetId||"",mask_mode:mask,user_fill_initialized:!preset.userPreset||mask,fill:style?style.fill:sfxPresetFill(preset),stroke:style?style.stroke:(preset.stroke||"#111111"),stroke_width:presetOutline,x:0,y:0,w:style?style.width:preset.w,h:style?style.height:preset.h,rotation:0,opacity:style?style.opacity:1,shadow_enabled:style?style.shadow_enabled:false,shadow_color:style?style.shadow_color:"#000000",shadow_x:style?style.shadow_x:6,shadow_y:style?style.shadow_y:6,shadow_blur:style?style.shadow_blur:4,glow_enabled:style?style.glow_enabled:false,glow_color:style?style.glow_color:"#ffffff",glow_opacity:style?style.glow_opacity:.75,glow_blur:style?style.glow_blur:16,glow_spread:style?style.glow_spread:0,visible:true};if(preset.symbolKind==="trapezoid")item.symbol_top_width=100;if(preset.symbolKind==="square")item.symbol_skew=0;return item; }
     function builtinAssetDisplayLabel(item){const label=String(item?.asset_label||"SFX Stamp");if(item?.user_asset_id||item?.user_preset_id)return label;const preset=SFX_BY_ID.get(item?.asset_id),builtin=BUILTIN_SFX_PRESETS.find(entry=>entry.id===item?.asset_id),names=window.SpeechBubbleAssetLabels.labels[item?.asset_id];if(!preset)return label;const defaults=[preset.label,preset.displayName,preset.ocrLabel,builtin?.label,names?.ja,names?.en].filter(Boolean);if(item.asset_label&&!defaults.includes(item.asset_label))return label;return sfxDisplayLabel(preset);}
     function randomEmphasisSeed(){if(globalThis.crypto?.getRandomValues){const value=new Uint32Array(1);globalThis.crypto.getRandomValues(value);return value[0];}return Math.floor(Math.random()*4294967296)>>>0;}
     function syncEmphasisCenterGapMaster(item,force=false){const range=document.getElementById("emphasisCenterGapRange"),number=document.getElementById("emphasisCenterGapValue"),active=item?.type==="emphasis_lines";if(!range||!number)return;range.disabled=!active;number.disabled=!active;if(!active){range.value=.03;number.value="";return;}const value=emphasisCenterGapValue(item);if(force||document.activeElement!==range)range.value=String(value);if(force||document.activeElement!==number)number.value=String(Number(value.toFixed(4)));}
@@ -2066,7 +2089,7 @@
         if (item.visible === undefined) item.visible = true;
         item.rotation=Number(item.rotation)||0;if(item.shadow_enabled===undefined)item.shadow_enabled=false;if(!item.shadow_color)item.shadow_color="#000000";if(!Number.isFinite(Number(item.shadow_x)))item.shadow_x=6;if(!Number.isFinite(Number(item.shadow_y)))item.shadow_y=6;if(!Number.isFinite(Number(item.shadow_blur)))item.shadow_blur=4;
         if (item.type === "text") { item.text=String(item.text??"").slice(0,100000);item.font_size=integerFontSize(item.font_size);item.font_id=String(item.font_id||"");item.font_family=item.font_family||"sans-serif";item.font_css_family=item.font_css_family||item.font_family;item.writing=item.writing==="vertical"?"vertical":"horizontal";item.align=["left","right"].includes(item.align)?item.align:"center";const hasTracking=Number.isFinite(Number(item.tracking));item.tracking=hasTracking?trackingValue(item.tracking):trackingValue(finiteOr(item.letter_spacing,0)*1000/item.font_size);delete item.letter_spacing;item.font_scale_x=fontScaleValue(item.font_scale_x);item.font_scale_y=fontScaleValue(item.font_scale_y);if(item.auto_fit===undefined)item.auto_fit=true;const restoredFont=matchingSavedFont(item);if(restoredFont){applyResolvedFont(item,restoredFont);ensureFontLoaded(restoredFont).then(loaded=>{if(!loaded||!state.elements.includes(item))return;fitTextBox(item,true,!item.auto_fit);syncProperties();render();});}fitTextBox(item,true,!item.auto_fit); }
-        else if(item.type==="sfx"||item.type==="sfx_stamp"){item.type="sfx";const savedUserAssetId=String(item.user_asset_id||"").replace(/^user:/,"")||(String(item.asset_id||"").startsWith("user:")?String(item.asset_id).slice(5):""),catalogPreset=savedUserAssetId?null:SFX_BY_ID.get(item.asset_id),preset=catalogPreset||(!savedUserAssetId?SFX_PRESETS[0]:{id:item.asset_id||`user:${savedUserAssetId}`,label:item.asset_label||"User Preset",format:item.asset_format||"PNG RGBA",src:item.asset_src||`${forgeApiBase}/user-assets/asset/${savedUserAssetId}`,mask:false,w:Math.max(1,finiteOr(item.w,360)),h:Math.max(1,finiteOr(item.h,360)),userPreset:true,userAssetId:savedUserAssetId,userPresetId:item.user_preset_id||""}),mask=!!preset.mask,presetOutline=Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?3:0);item.asset_id=item.asset_id||preset.id;item.asset_label=item.asset_label||preset.label;item.asset_format=item.asset_format||preset.format;item.asset_src=item.asset_src||preset.src;item.asset_width=Math.max(1,finiteOr(item.asset_width,preset.w||item.w||360));item.asset_height=Math.max(1,finiteOr(item.asset_height,preset.h||item.h||360));item.user_preset_id=item.user_preset_id||preset.userPresetId||"";item.user_asset_id=savedUserAssetId||preset.userAssetId||"";item.mask_mode=savedUserAssetId?(item.mask_mode??false):(item.mask_mode??mask);item.user_fill_initialized=savedUserAssetId?(item.user_fill_initialized===true||item.mask_mode===true):true;item.fill=savedUserAssetId&&!item.user_fill_initialized?"#ffffff":(item.fill||sfxPresetFill(preset));item.stroke=item.stroke||preset.stroke||"#111111";item.stroke_width=Math.max(0,finiteOr(item.stroke_width,presetOutline));item.opacity=Math.max(0,Math.min(1,finiteOr(item.opacity,1)));item.glow_enabled=!!item.glow_enabled;item.glow_color=item.glow_color||"#ffffff";item.glow_opacity=Math.max(0,Math.min(1,finiteOr(item.glow_opacity,.75)));item.glow_blur=Math.max(0,finiteOr(item.glow_blur,16));item.glow_spread=Math.max(0,finiteOr(item.glow_spread,0));if(!Number.isFinite(Number(item.w)))item.w=preset.w;if(!Number.isFinite(Number(item.h)))item.h=preset.h;normalizeBasicSymbolSettings(item);}
+        else if(item.type==="sfx"||item.type==="sfx_stamp"){item.type="sfx";const savedUserAssetId=String(item.user_asset_id||"").replace(/^user:/,"")||(String(item.asset_id||"").startsWith("user:")?String(item.asset_id).slice(5):""),catalogPreset=savedUserAssetId?null:SFX_BY_ID.get(item.asset_id),preset=catalogPreset||(!savedUserAssetId?SFX_PRESETS[0]:{id:item.asset_id||`user:${savedUserAssetId}`,label:item.asset_label||"User Preset",format:item.asset_format||"PNG RGBA",src:item.asset_src||`${forgeApiBase}/user-assets/asset/${savedUserAssetId}`,mask:false,w:Math.max(1,finiteOr(item.w,360)),h:Math.max(1,finiteOr(item.h,360)),userPreset:true,userAssetId:savedUserAssetId,userPresetId:item.user_preset_id||""}),mask=!!preset.mask,presetOutline=Number.isFinite(Number(preset.outlineWidth))?Number(preset.outlineWidth):(mask?3:0);item.asset_id=item.asset_id||preset.id;item.asset_label=item.asset_label||preset.label;item.asset_format=item.asset_format||preset.format;item.asset_src=savedUserAssetId?`${forgeApiBase}/user-assets/asset/${savedUserAssetId}`:(item.asset_src||preset.src);item.asset_width=Math.max(1,finiteOr(item.asset_width,preset.w||item.w||360));item.asset_height=Math.max(1,finiteOr(item.asset_height,preset.h||item.h||360));item.user_preset_id=item.user_preset_id||preset.userPresetId||"";item.user_asset_id=savedUserAssetId||preset.userAssetId||"";item.mask_mode=savedUserAssetId?(item.mask_mode??false):(item.mask_mode??mask);item.user_fill_initialized=savedUserAssetId?(item.user_fill_initialized===true||item.mask_mode===true):true;item.fill=savedUserAssetId&&!item.user_fill_initialized?"#ffffff":(item.fill||sfxPresetFill(preset));item.stroke=item.stroke||preset.stroke||"#111111";item.stroke_width=Math.max(0,finiteOr(item.stroke_width,presetOutline));item.opacity=Math.max(0,Math.min(1,finiteOr(item.opacity,1)));item.glow_enabled=!!item.glow_enabled;item.glow_color=item.glow_color||"#ffffff";item.glow_opacity=Math.max(0,Math.min(1,finiteOr(item.glow_opacity,.75)));item.glow_blur=Math.max(0,finiteOr(item.glow_blur,16));item.glow_spread=Math.max(0,finiteOr(item.glow_spread,0));if(!Number.isFinite(Number(item.w)))item.w=preset.w;if(!Number.isFinite(Number(item.h)))item.h=preset.h;normalizeBasicSymbolSettings(item);}
         else if(item.type==="bubble"||item.type==="shape") {
           item.type="bubble";
           item.path_points=normalizedLayoutPathPoints(item.path_points);
@@ -2332,7 +2355,19 @@
       ctx.save();ctx.globalAlpha=Math.max(0,Math.min(1,finiteOr(item.opacity,1)));ctx.translate(x+w/2,y+h/2);ctx.rotate((Number(item.rotation)||0)*Math.PI/180);ctx.scale(item.flip_x?-1:1,item.flip_y?-1:1);ctx.translate(-w/2,-h/2);if(shadowEnabled)ctx.drawImage(shadowLayer,minX-padding,minY-padding);outlineLayers.forEach(layer=>ctx.drawImage(layer,minX-padding,minY-padding));ctx.drawImage(fillLayer,minX-padding,minY-padding);drawBubbleDecoration(ctx,item,w,h);ctx.restore();
     }
     function drawText(item) { const w=Math.max(1,Number(item.w)||1),h=Math.max(1,Number(item.h)||1),size=integerFontSize(item.font_size),family=textCanvasFamily(item),pad=textPadding(item),scaleX=fontScaleFactor(item,"font_scale_x"),scaleY=fontScaleFactor(item,"font_scale_y"),logicalW=w/scaleX,padX=pad/scaleX,padY=pad/scaleY,spacing=trackingPixels(item,size),strokeWidth=Number(item.stroke_width)||0;ctx.save();ctx.translate((Number(item.x)||0)+w/2,(Number(item.y)||0)+h/2);ctx.rotate((Number(item.rotation)||0)*Math.PI/180);ctx.translate(-w/2,-h/2);ctx.scale(scaleX,scaleY);ctx.font=`${item.italic?"italic ":""}${item.bold?"700 ":""}${size}px "${family}", sans-serif`;ctx.fillStyle=item.color||"#111";ctx.strokeStyle=item.stroke_color||"#fff";ctx.lineWidth=strokeWidth*2;ctx.textBaseline="top";if(item.shadow_enabled){ctx.shadowColor=item.shadow_color||"#000";ctx.shadowOffsetX=(Number(item.shadow_x)||0)/scaleX;ctx.shadowOffsetY=(Number(item.shadow_y)||0)/scaleY;ctx.shadowBlur=Math.max(0,Number(item.shadow_blur)||0)/Math.sqrt(scaleX*scaleY);}const lines=String(item.text||"").split("\n");if(String(item.writing||"").startsWith("vertical")){drawVerticalTextColumns(ctx,item,logicalW,padX,padY,size,spacing,strokeWidth);}else{const lineH=size*1.2;lines.forEach((line,i)=>{const tw=measureTrackedText(line,spacing),tx=item.align==="left"?padX:item.align==="right"?logicalW-padX-tw:(logicalW-tw)/2,ty=padY+i*lineH;drawTrackedText(line,tx,ty,spacing,strokeWidth);if(item.underline)ctx.fillRect(tx,ty+size,tw,Math.max(1,size/18));if(item.strikethrough)ctx.fillRect(tx,ty+size*.55,tw,Math.max(1,size/18));});}ctx.restore(); }
-    function sfxImageFor(item){const userAssetId=String(item.user_asset_id||"").replace(/^user:/,""),preset=userAssetId?null:SFX_BY_ID.get(item.asset_id),src=item.asset_src||(userAssetId?`${forgeApiBase}/user-assets/asset/${userAssetId}`:preset?.src);if(!src)return null;if(!sfxImageCache.has(src)){const asset=new Image();asset.onload=()=>requestRender({canvas:true,preview:true});asset.onerror=()=>console.warn(`Speech Bubble SFX asset could not be loaded: ${src}`);asset.src=new URL(versionedSfxSrc(src),location.href).href;sfxImageCache.set(src,asset);}return sfxImageCache.get(src);}
+    function sfxImageFor(item){
+      const userAssetId=String(item.user_asset_id||"").replace(/^user:/,""),preset=userAssetId?null:SFX_BY_ID.get(item.asset_id);
+      const src=userAssetId?userAssetImageSource(userAssetId):(item.asset_src||preset?.src);
+      if(!src)return null;
+      if(!sfxImageCache.has(src)){
+        const asset=new Image();
+        asset.onload=()=>requestRender({canvas:true,preview:true});
+        asset.onerror=()=>console.warn(`Speech Bubble SFX asset could not be loaded: ${src}`);
+        asset.src=new URL(versionedSfxSrc(src),location.href).href;
+        sfxImageCache.set(src,asset);
+      }
+      return sfxImageCache.get(src);
+    }
     function clearSfxAssetCaches(){sfxImageCache.clear();sfxTintCache.clear();}
     function sfxTintCacheKey(preset,asset,color,mode){const source=String(asset?.currentSrc||asset?.src||"");return`${source}|${preset?.userAssetId||preset?.id||""}|${mode||"fill"}|${color}`;}
     function tintedSfxImage(preset,asset,color,mode="fill"){const key=sfxTintCacheKey(preset,asset,color,mode),cached=lruGet(sfxTintCache,key);if(cached)return cached;const tinted=document.createElement("canvas");tinted.width=asset.naturalWidth;tinted.height=asset.naturalHeight;const target=tinted.getContext("2d");target.drawImage(asset,0,0);target.globalCompositeOperation="source-in";target.fillStyle=color;target.fillRect(0,0,tinted.width,tinted.height);return lruSet(sfxTintCache,key,tinted,MAX_SFX_TINT_CACHE);}
@@ -2898,6 +2933,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     window.SpeechBubbleApplyRuntimeSettings=settings=>{
       autoSaveEnabled=settings?.auto_save!==false;
       showEmptyCanvasGuide=settings?.show_empty_canvas_guide!==false;
+      saveOverlay=settings?.save_overlay===true;
       const nextSharedProjectImages=settings?.shared_project_images!==false,sharedModeChanged=nextSharedProjectImages!==sharedProjectImages;
       sharedProjectImages=nextSharedProjectImages;
       projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},sharedModeChanged);
@@ -3071,6 +3107,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       clearTimeout(autoSaveTimer);autoSaveTimer=null;dirtyTrackingEnabled=false;
       clearSingleImageAssets();
       clearPageImageAssets();
+      clearEmbeddedUserAssets();
       projectImageTray?.restore?.([],null);
       projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},false);
       if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
@@ -3740,7 +3777,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("plus").onclick=()=>{state.zoom=Math.min(4,state.zoom*1.2);captureActiveWorkspace();requestRender({canvas:true});}; document.getElementById("minus").onclick=()=>{state.zoom=Math.max(.25,state.zoom/1.2);captureActiveWorkspace();requestRender({canvas:true});}; document.getElementById("fit").onclick=fitView;
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
      function saveEditorWindowState(){const availableWidth=Number(screen.availWidth)||window.outerWidth||window.innerWidth,availableHeight=Number(screen.availHeight)||window.outerHeight||window.innerHeight,availableLeft=Number(screen.availLeft)||0,availableTop=Number(screen.availTop)||0,width=Math.round(window.outerWidth||window.innerWidth),height=Math.round(window.outerHeight||window.innerHeight),left=Math.round(Number.isFinite(window.screenX)?window.screenX:window.screenLeft||availableLeft),top=Math.round(Number.isFinite(window.screenY)?window.screenY:window.screenTop||availableTop),tolerance=32,maximized=Math.abs(width-availableWidth)<=tolerance&&Math.abs(height-availableHeight)<=tolerance&&Math.abs(left-availableLeft)<=tolerance&&Math.abs(top-availableTop)<=tolerance,stateSnapshot={mode:maximized?"maximized":"windowed",width,height,left,top,updatedAt:Date.now()};try{localStorage.setItem(EDITOR_WINDOW_STATE_KEY,JSON.stringify(stateSnapshot));window.pywebview?.api?.save_window_state?.({window_width:width,window_height:height,window_left:left,window_top:top,window_maximized:maximized});}catch{}}
-     function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}comicEditor?.dispose();generalComicEditor?.dispose();clearSingleImageAssets();if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
+     function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}comicEditor?.dispose();generalComicEditor?.dispose();clearEmbeddedUserAssets();clearSingleImageAssets();if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
     async function prepareNativeClose(options={}){
       if(nativeClosePrepared)return{ok:true};
       if(nativeCloseInFlight)return{ok:false,error:uiText("終了処理中です","Close is already in progress")};
@@ -3947,6 +3984,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     const DESKTOP_SINGLE_BACKGROUND_ID="__single_background__";
     async function desktopSnapshot(){
       await syncProjectImageTrayFromEditors();
+      const layout=JSON.parse(currentLayoutJson());
       const byId=new Map();
       const add=record=>{const id=String(record?.id||"");if(id&&!byId.has(id))byId.set(id,record);};
       for(const record of await comicEditor?.exportProjectImages?.()||[])add(record);
@@ -3954,14 +3992,30 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       for(const asset of singleImageAssets.values())add({id:asset.id,name:asset.name||"single-image",mime:asset.mime||asset.blob.type||"image/png",data_url:await blobToDataUrl(asset.blob)});
       for(const asset of pageImageAssets.values())add({id:asset.id,name:asset.name||"page-image",mime:asset.mime||asset.blob.type||"image/png",data_url:await blobToDataUrl(asset.blob)});
       if(!singleImageAssets.size&&imageLoaded&&(sourceBlob||imageUrl)){const blob=await sourceImageBlob();add({id:DESKTOP_SINGLE_BACKGROUND_ID,name:sourceName||"single-image",mime:blob.type||"image/png",data_url:await blobToDataUrl(blob)});}
-      return{title:sourceName||"speech-bubble-project",project_path:currentProjectPath,layout:JSON.parse(currentLayoutJson()),images:[...byId.values()]};
+      for(const assetId of userAssetIdsInLayout(layout)){
+        let blob=embeddedUserAssets.get(assetId)?.blob;
+        if(!blob){
+          const response=await fetch(`${forgeApiBase}/user-assets/asset/${assetId}`,{cache:"no-store"});
+          if(!response.ok)throw new Error(`Custom stamp ${assetId} is unavailable; project was not saved.`);
+          blob=await response.blob();
+        }
+        if(!["image/png","image/webp"].includes(blob.type))throw new Error(`Custom stamp ${assetId} has an unsupported format.`);
+        add({id:`${PROJECT_USER_ASSET_PREFIX}${assetId}`,name:`stamp-${assetId.slice(0,12)}`,mime:blob.type,data_url:await blobToDataUrl(blob)});
+      }
+      return{title:sourceName||"speech-bubble-project",project_path:currentProjectPath,layout,images:[...byId.values()]};
     }
     async function loadDesktopPayload(payload,{recovery=false}={}){
       const prepared=projectSchema.preflightPayload(payload),records=await Promise.all(prepared.images.map(async record=>{const response=await fetch(record.data_url);if(!response.ok)throw new Error(`Image load failed: ${record.id}`);const blob=await response.blob();if(!String(blob.type||"").startsWith("image/"))throw new Error(`Image data is invalid: ${record.id}`);const url=URL.createObjectURL(blob);try{await loadSingleImageElement(url);}finally{URL.revokeObjectURL(url);}return{...record,blob};}));
       const savedSingleElements=prepared.layout.workspaces?.single?.elements||prepared.layout.elements||[],singleIds=new Set(savedSingleElements.filter(item=>item?.type==="image"&&item.image_asset_id).map(item=>String(item.image_asset_id))),comicIds=new Set((prepared.layout.comic?.images||[]).map(item=>String(item?.id||"")).filter(Boolean)),generalIds=new Set((prepared.layout.general_comic?.images||[]).map(item=>String(item?.id||"")).filter(Boolean));
-      const singleRecords=records.filter(record=>record.id===DESKTOP_SINGLE_BACKGROUND_ID||singleIds.has(String(record.id))||(!singleIds.size&&String(record.id).startsWith(SINGLE_IMAGE_ASSET_PREFIX))),comicRecords=records.filter(record=>comicIds.has(String(record.id))||(!comicIds.size&&String(record.id).startsWith("comic-image:"))),generalRecords=records.filter(record=>generalIds.has(String(record.id))||(!generalIds.size&&String(record.id).startsWith(generalComicEditor?.IMAGE_PREFIX||"general-comic-image:"))),preferredId=savedSingleElements.find(item=>item?.type==="image"&&item.source_role==="original")?.image_asset_id||savedSingleElements.find(item=>item?.type==="image")?.image_asset_id||singleRecords[0]?.id;
+      const stampRecords=records.filter(record=>String(record.id).startsWith(PROJECT_USER_ASSET_PREFIX)),imageRecords=records.filter(record=>!String(record.id).startsWith(PROJECT_USER_ASSET_PREFIX));
+      const singleRecords=imageRecords.filter(record=>record.id===DESKTOP_SINGLE_BACKGROUND_ID||singleIds.has(String(record.id))||(!singleIds.size&&String(record.id).startsWith(SINGLE_IMAGE_ASSET_PREFIX))),comicRecords=imageRecords.filter(record=>comicIds.has(String(record.id))||(!comicIds.size&&String(record.id).startsWith("comic-image:"))),generalRecords=imageRecords.filter(record=>generalIds.has(String(record.id))||(!generalIds.size&&String(record.id).startsWith(generalComicEditor?.IMAGE_PREFIX||"general-comic-image:"))),preferredId=savedSingleElements.find(item=>item?.type==="image"&&item.source_role==="original")?.image_asset_id||savedSingleElements.find(item=>item?.type==="image")?.image_asset_id||singleRecords[0]?.id;
       const nextId=`standalone:${createUuid()}`;setStandaloneContext(nextId);clearDocumentCanvas();sourceName=String(prepared.manifest?.title||"speech-bubble-project");currentProjectPath=String(prepared.path||prepared.manifest?.project_path||"");dirtyTrackingEnabled=false;
-      for(const record of records)if(record.id!==DESKTOP_SINGLE_BACKGROUND_ID)await registerPageImageAsset(record.blob,record.name||"Page Image",record.id,record);
+      for(const record of stampRecords){
+        const assetId=String(record.id).slice(PROJECT_USER_ASSET_PREFIX.length).toLowerCase();
+        if(!/^[a-f0-9]{64}$/.test(assetId))throw new Error("Invalid embedded stamp ID");
+        embeddedUserAssets.set(assetId,{blob:record.blob,url:URL.createObjectURL(record.blob)});
+      }
+      for(const record of imageRecords)if(record.id!==DESKTOP_SINGLE_BACKGROUND_ID)await registerPageImageAsset(record.blob,record.name||"Page Image",record.id,record);
       for(const record of singleRecords){const assetId=record.id===DESKTOP_SINGLE_BACKGROUND_ID?`${SINGLE_IMAGE_ASSET_PREFIX}legacy-original`:record.id;if(record.id===preferredId||(!imageLoaded&&record===singleRecords[0]))await displayImageBlob(record.blob,{name:record.name||sourceName,assetId});else await registerSingleImageAsset(record.blob,record.name||"Image",assetId);}
       loadState(JSON.stringify(prepared.layout),{strict:true});if(activeWorkspace==="single")ensurePrimarySingleImageLayer();await comicEditor?.importProjectImages?.(comicRecords.map(({blob,...record})=>record));await generalComicEditor?.importProjectImages?.(generalRecords.map(({blob,...record})=>record));
       const trayRecords=[...pageImageAssets.values()].map(asset=>({id:asset.id,name:asset.name,mime:asset.mime,width:asset.width,height:asset.height,sha256:asset.sha256||""}));projectImageTray?.restore?.(trayRecords,prepared.layout.image_trays);projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},false);projectImageTray?.setWorkspace?.(activeWorkspace);await syncProjectImageTrayFromEditors();
