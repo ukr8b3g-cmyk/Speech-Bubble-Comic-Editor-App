@@ -142,5 +142,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Draft release creation or upload failed" }
           gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
-          gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,isLatest,assets --jq '{draft:.isDraft,latest:.isLatest,asset_names:[.assets[].name]}'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,assets,tagName --jq '{draft:.isDraft,tag:.tagName,asset_names:[.assets[].name]}'
           if ($LASTEXITCODE -ne 0) { throw "Release verification failed" }
+          $latestTag = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq '.tag_name'
+          if ($LASTEXITCODE -ne 0 -or $latestTag -ne $tag) { throw "v1.0.1 is not the latest stable release" }
