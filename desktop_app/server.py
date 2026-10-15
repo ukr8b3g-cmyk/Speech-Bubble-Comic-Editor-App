@@ -206,6 +206,11 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
         except (OSError, ValueError, TypeError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
+    @app.post("/desktop/recovery/discard")
+    async def discard_recovery(request: Request, x_sbe_token: str = Header(default="")):
+        require_token(request, x_sbe_token)
+        return recovery.discard()
+
     @app.get("/desktop/recovery/load")
     async def load_recovery(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)

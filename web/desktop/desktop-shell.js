@@ -1407,8 +1407,14 @@
       body: JSON.stringify({ path, ...snapshot }),
     });
     const saved = await root.SpeechBubbleDesktopEditor.markProjectSaved?.(path, JSON.stringify(snapshot.layout));
-    if (saved === false) throw new Error("Project changed while it was being saved; save again.");
-    root.SpeechBubbleDesktopEditor.setStatus(desktopText(`${path} を保存しました`,`Saved ${path}`), "saved");
+    if (saved === false) return false;
+    const newerChanges = root.SpeechBubbleDesktopEditor.hasUnsavedChanges?.() === true;
+    root.SpeechBubbleDesktopEditor.setStatus(
+      newerChanges
+        ? desktopText("保存後に追加の変更があります。もう一度保存してください。", "New edits were made after the saved snapshot. Save again.")
+        : desktopText(`${path} を保存しました`, `Saved ${path}`),
+      newerChanges ? "dirty" : "saved",
+    );
     return Boolean(result !== false);
   }
 
@@ -1416,8 +1422,12 @@
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "document-dialog";
-      const creating = purpose === "new";
-      dialog.innerHTML = `<form method="dialog"><h3>${creating ? desktopText("新規プロジェクトを作成しますか？","Create a new project?") : desktopText("アプリを終了しますか？","Close the app?")}</h3><p>${desktopText("未保存の変更があります。","There are unsaved changes.")}</p><div class="replace-dialog-actions"><button value="cancel">${desktopText("キャンセル","Cancel")}</button><button value="discard">${creating ? desktopText("保存せず作成","Discard & Create") : desktopText("保存せず終了","Discard & Close")}</button><button class="primary" value="save">${creating ? desktopText("保存して作成","Save & Create") : desktopText("保存して終了","Save & Close")}</button></div></form>`;
+      const labels = purpose === "open"
+        ? ["別のプロジェクトを開きますか？", "Open another project?", "破棄して開く", "Discard & Open", "保存して開く", "Save & Open"]
+        : purpose === "new"
+          ? ["新規プロジェクトを作成しますか？", "Create a new project?", "保存せず作成", "Discard & Create", "保存して作成", "Save & Create"]
+          : ["アプリを終了しますか？", "Close the app?", "保存せず終了", "Discard & Close", "保存して終了", "Save & Close"];
+      dialog.innerHTML = `<form method="dialog"><h3>${desktopText(labels[0],labels[1])}</h3><p>${desktopText("プロジェクトに未保存の変更があります。","The project has unsaved changes.")}</p><div class="replace-dialog-actions"><button value="cancel">${desktopText("キャンセル","Cancel")}</button><button value="discard">${desktopText(labels[2],labels[3])}</button><button class="primary" value="save">${desktopText(labels[4],labels[5])}</button></div></form>`;
       document.body.append(dialog);
       dialog.addEventListener("close", () => { const value = dialog.returnValue || "cancel"; dialog.remove(); resolve(value); }, { once: true });
       dialog.addEventListener("cancel", (event) => { event.preventDefault(); dialog.close("cancel"); });
@@ -1425,13 +1435,26 @@
     });
   }
 
+  async function confirmProjectReplacement(purpose) {
+    if (!root.SpeechBubbleDesktopEditor?.hasUnsavedChanges?.()) return true;
+    const action = await confirmUnsavedChanges(purpose);
+    if (action === "cancel") return false;
+    if (action === "save") {
+      if (!(await saveProject())) return false;
+      if (root.SpeechBubbleDesktopEditor.hasUnsavedChanges?.()) {
+        root.SpeechBubbleDesktopEditor.setStatus(
+          desktopText("保存後に追加の変更があります。再保存してください。", "Changes were made after saving. Save again."),
+          "dirty",
+        );
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function requestNewProject() {
     if (!root.SpeechBubbleDesktopEditor?.newProject) return false;
-    if (root.SpeechBubbleDesktopEditor.hasUnsavedChanges?.()) {
-      const action = await confirmUnsavedChanges("new");
-      if (action === "cancel") return false;
-      if (action === "save" && !(await saveProject())) return false;
-    }
+    if (!(await confirmProjectReplacement("new"))) return false;
     await root.SpeechBubbleDesktopEditor.newProject();
     await saveRecoveryCheckpoint();
     return true;
@@ -1441,11 +1464,21 @@
     const api = nativeApi();
     if (!api?.choose_project_open) throw new Error(desktopText("プロジェクト読込はDesktopウィンドウから実行してください。","Open the project from the Desktop window."));
     const path = await api.choose_project_open();
-    if (!path) return;
+    if (!path) return false;
+    if (!(await confirmProjectReplacement("open"))) return false;
+    // A late edit while reading must not be silently replaced by the opened file.
+    const token = root.SpeechBubbleDesktopEditor.changeToken?.();
     const payload = await desktopFetch("/desktop/project/open", {
       method: "POST",
       body: JSON.stringify({ path }),
     });
+    if (token !== root.SpeechBubbleDesktopEditor.changeToken?.()) {
+      root.SpeechBubbleDesktopEditor.setStatus(
+        desktopText("プロジェクト読込中に編集が加わりました。開き直してください。", "Edits were made while loading. Open the project again."),
+        "dirty",
+      );
+      return false;
+    }
     await root.SpeechBubbleDesktopEditor.loadProject(payload);
     let recoveryUpdated = true;
     try {
@@ -1478,6 +1511,9 @@
 
   async function saveRecoveryCheckpoint() {
     return saveRecovery(true);
+  }
+  async function discardRecovery() {
+    return desktopFetch("/desktop/recovery/discard", { method: "POST" });
   }
 
   async function loadRecovery() {
@@ -1659,7 +1695,7 @@
     window.addEventListener("speech-bubble:bubble-presets-change", () => refreshBubblePresetManager(settings));
   }
 
-  root.SpeechBubbleDesktopShell = { openSettings, prepareExportTarget, saveProject, confirmUnsavedChanges, requestNewProject, saveRecovery, saveRecoveryCheckpoint, loadRecovery };
+  root.SpeechBubbleDesktopShell = { openSettings, prepareExportTarget, saveProject, confirmUnsavedChanges, requestNewProject, saveRecovery, saveRecoveryCheckpoint, discardRecovery, loadRecovery };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install, { once: true });
   else install();
 })(globalThis);

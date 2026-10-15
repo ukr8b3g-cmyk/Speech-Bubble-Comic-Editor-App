@@ -900,6 +900,7 @@
     let standaloneResumeResolver = null;
     let standaloneResumePromise = null;
     let currentProjectPath = "";
+    let lastProjectLayout = null;
     let nativeClosePrepared = false;
     let nativeCloseInFlight = false;
     const DEBUG_RENDER = false;
@@ -1266,8 +1267,13 @@
     async function storeGeneratedBackground(id,blob,name,tab,url){if(!id?.startsWith("generated:")||!blob)return;try{await storeCachedBackground({documentId:id,kind:"generated",blob,sourceName:name||"speech_bubble",sourceTab:tab||"",sourceUrl:String(url||"")});}catch(error){console.warn("Speech Bubble generated background save failed",error);}}
     function setSaveState(message,level="info",detail=""){const node=document.getElementById("saveState");if(!node)return;node.textContent=message;node.title=detail||message;node.dataset.level=level;}
     function hasEditableDocument(){const defaultBackground=normalizedCanvasBackground(),customizedSingleCanvas=activeWorkspace==="single"&&(JSON.stringify(normalizedCanvasBackground(state.canvasBackground))!==JSON.stringify(defaultBackground)||state.backgroundVisible===false);return Boolean(imageLoaded&&state.backgroundImage.attached&&image.naturalWidth)||Boolean(workspaces.single.elements.length)||customizedSingleCanvas||Boolean(comicEditor?.isActive())||Boolean(generalComicEditor?.hasPage());}
-    function updateActionState(){const hasDocument=hasEditableDocument();document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=!hasDocument||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty)setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
+    function updateActionState(){const hasDocument=hasEditableDocument();document.getElementById("saveLayout").disabled=!hasDocument;document.getElementById("exportImage").disabled=!hasDocument;document.getElementById("discardChanges").disabled=!hasDocument||!layoutDirty;document.getElementById("emptyCanvasState").hidden=hasDocument||activeWorkspace!=="single"||!showEmptyCanvasGuide;if(!hasDocument)setSaveState(generalComicEditor?.isActive()?uiText("コミックページを作成してください","Create a comic page"):uiText("画像を読み込んでください","Load an image to begin"),"info");else if(layoutDirty||(hostMode==="desktop"&&hasUncommittedProjectChanges()))setSaveState(autoSaveEnabled?uiText("未保存の変更（下書き保存対象）","Unsaved changes (included in draft)"):uiText("未保存の変更があります","Unsaved changes"),"dirty");else if(hasExplicitSavedLayout)setSaveState(uiText("レイアウト保存済み","Layout saved"),"saved");else setSaveState(activeStructuralEditor()&&!imageLoaded?uiText("新規漫画ページ","New comic page"):uiText("新規レイアウト","New layout"),"info");}
     function markLayoutDirty(){if(!dirtyTrackingEnabled||!hasEditableDocument())return;layoutDirty=currentLayoutJson()!==lastSavedLayout;updateActionState();}
+    function hasUncommittedProjectChanges(){
+      // Ctrl+S persists a layout, not the .sbeproj. Recovery has an unknown disk baseline.
+      if(!dirtyTrackingEnabled||!hasEditableDocument())return false;
+      return lastProjectLayout===null||currentLayoutJson()!==lastProjectLayout;
+    }
     let sfxBrowseMode="sfx";
     let sfxSortMode="recommended";
     let userPresets = [];
@@ -2858,14 +2864,21 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     async function markProjectSaved(projectPath, savedLayout){
       const normalized=safeStoredLayout(savedLayout||currentLayoutJson());
+      // Record what reached disk, never silently mark later edits as saved.
       currentProjectPath=String(projectPath||currentProjectPath||"");
-      if(normalized!==currentLayoutJson()){
-        updateActionState();
-        return false;
-      }
-      try{localStorage.setItem(jsonKey,normalized);localStorage.setItem(savedLayoutKey(),normalized);removeDraftCache();}catch{}
-      lastSavedLayout=normalized;hasExplicitSavedLayout=true;layoutDirty=false;updateActionState();
-      try{await persistDesktopRecovery(true,true);}catch(error){console.warn("Speech Bubble project recovery sync failed",error);setSaveState(uiText("プロジェクトは保存済みですが、復元キャッシュを同期できませんでした","Project saved, but recovery cache sync failed"),"error");}
+      lastProjectLayout=normalized;
+      lastSavedLayout=normalized;
+      hasExplicitSavedLayout=true;
+      layoutDirty=normalized!==currentLayoutJson();
+      try{
+        localStorage.setItem(savedLayoutKey(),normalized);
+        if(!layoutDirty){localStorage.setItem(jsonKey,normalized);removeDraftCache();}
+      }catch{}
+      if(layoutDirty)scheduleAutoSave();
+      updateActionState();
+      try{await persistDesktopRecovery(true,true);}
+      catch(error){console.warn("Speech Bubble project recovery sync failed",error);setSaveState(uiText("プロジェクトは保存済みですが、復元キャッシュを同期できませんでした","Project saved, but recovery cache sync failed"),"error");}
+      refreshDirtyState();
       return true;
     }
     function persistDraftNow(){
@@ -2925,10 +2938,17 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         });
         const payload=await response.json().catch(()=>({}));
         if(!response.ok||!payload.ok)throw new Error(payload.detail||`Layout save failed (${response.status})`);
-        try{localStorage.setItem(jsonKey,layout);localStorage.setItem(savedLayoutKey(),layout);removeDraftCache();}catch{}
+        lastSavedLayout=layout;hasExplicitSavedLayout=true;
+        layoutDirty=currentLayoutJson()!==layout;
+        try{
+          localStorage.setItem(savedLayoutKey(),layout);
+          if(!layoutDirty){localStorage.setItem(jsonKey,layout);removeDraftCache();}
+        }catch{}
         if(documentMode==="standalone")try{localStorage.setItem(LAST_STANDALONE_ID_KEY,documentId);}catch{}
-        lastSavedLayout=layout;hasExplicitSavedLayout=true;layoutDirty=false;updateActionState();
+        if(layoutDirty)scheduleAutoSave();
+        updateActionState();
         await persistDesktopRecovery(true,true);
+        refreshDirtyState();
         postHost("speech_bubble:layout_saved",{image_hash:imageHash,document_id:documentId,layout_json:layout});
         return true;
       }catch(error){
@@ -3056,13 +3076,13 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       if(sourceObjectUrl)URL.revokeObjectURL(sourceObjectUrl);
       sourceObjectUrl=null;sourceBlob=null;imageUrl="";imageHash="";imageLoaded=false;
       image.onload=null;image.onerror=null;image.removeAttribute("src");
-      sourceName="speech_bubble";loadState("{}");lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;
+      sourceName="speech_bubble";loadState("{}");lastSavedLayout=currentLayoutJson();lastProjectLayout=lastSavedLayout;hasExplicitSavedLayout=false;layoutDirty=false;
       state.undo=[];state.redo=[];syncProperties();fitView(false);requestRender({canvas:true,layers:true,preview:false});dirtyTrackingEnabled=true;updateActionState();
     }
     async function createNewDesktopProject(){
       setStandaloneContext(`standalone:${createUuid()}`);clearDocumentCanvas();currentProjectPath="";sourceName="speech_bubble";
       comicEditor?.setEditMode?.("single");comicConverter?.close?.();backgroundRemoval?.close?.();quickRetouch?.close?.();
-      lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;state.undo=[];state.redo=[];
+      lastSavedLayout=currentLayoutJson();lastProjectLayout=lastSavedLayout;hasExplicitSavedLayout=false;layoutDirty=false;state.undo=[];state.redo=[];
       setSaveState(uiText("新規プロジェクトを作成しました","Created a new project"),"saved");updateActionState();
     }
     async function displayImageBlob(blob,{name="speech_bubble",tab=sourceTab,hash="",assetId=""}={}){
@@ -3520,10 +3540,13 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
         if(!snapshot||snapshot===sceneSnapshot())return true;
         paletteSyncApplying=true;
         try{
+          const before=sceneSnapshot();
           restoreScene(snapshot);
+          if(!isPaletteWindow)storeUndo(before);
           lastPaletteSyncSnapshot=snapshot;
           syncProperties();
-          requestRender({canvas:!isPaletteWindow,layers:true,preview:false});
+          requestRender({canvas:!isPaletteWindow,layers:true,preview:!isPaletteWindow});
+          if(!isPaletteWindow){refreshDirtyState();if(layoutDirty)scheduleAutoSave();}
           updateActionState();
           return true;
         }finally{paletteSyncApplying=false;}
@@ -3718,7 +3741,38 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
      function saveEditorWindowState(){const availableWidth=Number(screen.availWidth)||window.outerWidth||window.innerWidth,availableHeight=Number(screen.availHeight)||window.outerHeight||window.innerHeight,availableLeft=Number(screen.availLeft)||0,availableTop=Number(screen.availTop)||0,width=Math.round(window.outerWidth||window.innerWidth),height=Math.round(window.outerHeight||window.innerHeight),left=Math.round(Number.isFinite(window.screenX)?window.screenX:window.screenLeft||availableLeft),top=Math.round(Number.isFinite(window.screenY)?window.screenY:window.screenTop||availableTop),tolerance=32,maximized=Math.abs(width-availableWidth)<=tolerance&&Math.abs(height-availableHeight)<=tolerance&&Math.abs(left-availableLeft)<=tolerance&&Math.abs(top-availableTop)<=tolerance,stateSnapshot={mode:maximized?"maximized":"windowed",width,height,left,top,updatedAt:Date.now()};try{localStorage.setItem(EDITOR_WINDOW_STATE_KEY,JSON.stringify(stateSnapshot));window.pywebview?.api?.save_window_state?.({window_width:width,window_height:height,window_left:left,window_top:top,window_maximized:maximized});}catch{}}
      function cleanupTransientState(){clearTimeout(livePreviewTimer);livePreviewTimer=null;clearTimeout(autoSaveTimer);autoSaveTimer=null;try{localStorage.removeItem(jsonKey);}catch{}comicEditor?.dispose();generalComicEditor?.dispose();clearSingleImageAssets();if(sourceObjectUrl){URL.revokeObjectURL(sourceObjectUrl);sourceObjectUrl=null;}}
-    async function prepareNativeClose(options={}){if(nativeClosePrepared){return{ok:true};}if(nativeCloseInFlight){return{ok:false,error:uiText("終了処理中です","Close is already in progress")};}nativeCloseInFlight=true;let result={ok:false,error:""};try{if(layoutDirty){const action=await window.SpeechBubbleDesktopShell?.confirmUnsavedChanges?.("close")||"cancel";if(action==="cancel"){result={ok:false,cancelled:true};return result;}if(action==="save"&&!(await window.SpeechBubbleDesktopShell?.saveProject?.())){result={ok:false,cancelled:true};return result;}if(action==="discard"){discardChanges(false);await persistDesktopRecovery(true,true);}}saveEditorWindowState();nativeClosePrepared=true;result={ok:true};return result;}catch(error){result={ok:false,error:error?.message||uiText("終了前の保存に失敗しました","Could not save before closing")};setSaveState(result.error,"error");return result;}finally{nativeCloseInFlight=false;if(options?.fromNative){try{await window.pywebview?.api?.native_close_ready?.(result.ok,result.error||"",Boolean(result.cancelled));}catch(error){console.warn("Speech Bubble native close acknowledgement failed",error);}}}}
+    async function prepareNativeClose(options={}){
+      if(nativeClosePrepared)return{ok:true};
+      if(nativeCloseInFlight)return{ok:false,error:uiText("終了処理中です","Close is already in progress")};
+      nativeCloseInFlight=true;
+      let result={ok:false,error:""};
+      try{
+        if(hasUncommittedProjectChanges()){
+          const action=await window.SpeechBubbleDesktopShell?.confirmUnsavedChanges?.("close")||"cancel";
+          if(action==="cancel"){result={ok:false,cancelled:true};return result;}
+          if(action==="save"){
+            if(!(await window.SpeechBubbleDesktopShell?.saveProject?.())||hasUncommittedProjectChanges()){
+              setSaveState(uiText("保存後に変更があります。もう一度保存してください","New changes exist after saving. Save again."),"dirty");
+              result={ok:false,cancelled:true};return result;
+            }
+          }else if(action==="discard"){
+            // Suppress fallback to older autosave generations after deliberate discard.
+            if(!window.SpeechBubbleDesktopShell?.discardRecovery)throw new Error("Recovery discard is unavailable");
+            await window.SpeechBubbleDesktopShell.discardRecovery();
+          }
+        }
+        saveEditorWindowState();nativeClosePrepared=true;result={ok:true};return result;
+      }catch(error){
+        result={ok:false,error:error?.message||uiText("終了前の保存に失敗しました","Could not save before closing")};
+        setSaveState(result.error,"error");return result;
+      }finally{
+        nativeCloseInFlight=false;
+        if(options?.fromNative){
+          try{await window.pywebview?.api?.native_close_ready?.(result.ok,result.error||"",Boolean(result.cancelled));}
+          catch(error){console.warn("Speech Bubble native close acknowledgement failed",error);}
+        }
+      }
+    }
     async function closeEditor(){if(editorClosed)return;const result=await prepareNativeClose({fromNative:false});if(!result.ok)return;postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});if(window.pywebview?.api?.native_close_ready)await window.pywebview.api.native_close_ready(true,"",false);else window.close();}
     document.getElementById("discardChanges").onclick=discardChanges;
     document.getElementById("saveLayout").onclick=saveLayoutExplicit;
@@ -3782,7 +3836,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       }
     });
     window.addEventListener("beforeunload",event=>{if(editorClosed||nativeClosePrepared||autoSaveEnabled||!layoutDirty)return;event.preventDefault();event.returnValue="";});
-    window.addEventListener("pagehide",()=>{if(isPaletteWindow||editorClosed)return;if(layoutDirty&&autoSaveEnabled)persistDraftNow();saveEditorWindowState();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});});
+    window.addEventListener("pagehide",()=>{if(isPaletteWindow||editorClosed)return;if(layoutDirty&&autoSaveEnabled&&!nativeClosePrepared)persistDraftNow();saveEditorWindowState();postHost("speech_bubble:editor_closing",{...editorConnectionState(),image_hash:imageHash,document_id:documentId});editorClosed=true;cleanupTransientState();postHost("speech_bubble:editor_closed",{image_hash:imageHash,document_id:documentId});});
     const properties=document.getElementById("properties");
     const shapePropertyKeys=new Set(["shape_intensity","shape_asymmetry","shape_roundness","spike_count","valley_style","valley_concavity","lobe_count","lobe_depth","shape_softness"]);
     const textFitPropertyKeys=new Set(["text","writing","font_id","font_path","font_size","tracking","font_scale_x","font_scale_y","bold","italic","stroke_width","stroke_color","shadow_enabled","shadow_x","shadow_y","shadow_blur","auto_fit"]);
@@ -3911,13 +3965,14 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       for(const record of singleRecords){const assetId=record.id===DESKTOP_SINGLE_BACKGROUND_ID?`${SINGLE_IMAGE_ASSET_PREFIX}legacy-original`:record.id;if(record.id===preferredId||(!imageLoaded&&record===singleRecords[0]))await displayImageBlob(record.blob,{name:record.name||sourceName,assetId});else await registerSingleImageAsset(record.blob,record.name||"Image",assetId);}
       loadState(JSON.stringify(prepared.layout),{strict:true});if(activeWorkspace==="single")ensurePrimarySingleImageLayer();await comicEditor?.importProjectImages?.(comicRecords.map(({blob,...record})=>record));await generalComicEditor?.importProjectImages?.(generalRecords.map(({blob,...record})=>record));
       const trayRecords=[...pageImageAssets.values()].map(asset=>({id:asset.id,name:asset.name,mime:asset.mime,width:asset.width,height:asset.height,sha256:asset.sha256||""}));projectImageTray?.restore?.(trayRecords,prepared.layout.image_trays);projectImageTray?.applySettings?.({mode:sharedProjectImages?"shared":"separate"},false);projectImageTray?.setWorkspace?.(activeWorkspace);await syncProjectImageTrayFromEditors();
-      lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=!recovery;layoutDirty=recovery;state.undo=[];state.redo=[];dirtyTrackingEnabled=true;
+      lastSavedLayout=currentLayoutJson();lastProjectLayout=recovery?null:lastSavedLayout;hasExplicitSavedLayout=!recovery;layoutDirty=recovery;state.undo=[];state.redo=[];dirtyTrackingEnabled=true;
       restoreWorkspaceView(workspaces[activeWorkspace],false);syncProperties();requestRender({canvas:true,layers:true,preview:false});updateActionState();
     }
     window.SpeechBubbleDesktopEditor={
       snapshot:desktopSnapshot,
       markProjectSaved,
-      hasUnsavedChanges:()=>layoutDirty,
+      hasUnsavedChanges:hasUncommittedProjectChanges,
+      changeToken:()=>currentLayoutJson(),
       newProject:createNewDesktopProject,
       prepareNativeClose,
       loadProject:async payload=>loadDesktopPayload(payload,{recovery:false}),
@@ -3948,7 +4003,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       initializeBackgroundRemoval();
       initializeQuickRetouch();
       initializePresetUI();initializeSfxSwatches();initializeCompactColorSwatches();initializeCanvasBackgroundSwatches();refreshQuickSfx();refreshQuickFrames();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockFloating();initializeFontBrowserDrag();enhanceNumericInputs();initializeUserAssetBroadcast();loadUserPresets();
-      loadState("{}");lastSavedLayout=currentLayoutJson();hasExplicitSavedLayout=false;layoutDirty=false;imageLoaded=false;updateActionState();firstPaint();
+      loadState("{}");lastSavedLayout=currentLayoutJson();lastProjectLayout=lastSavedLayout;hasExplicitSavedLayout=false;layoutDirty=false;imageLoaded=false;updateActionState();firstPaint();
       if(isPaletteWindow&&hostMode==="desktop"){await window.pywebview?.api?.palette_ready?.();return;}
       deferEditorTask(()=>{pruneDraftCache();pruneDocumentBackgrounds();});
       let startupResult="new";

@@ -217,7 +217,26 @@ class RecoveryStore:
             "state_hash": record.get("state_hash", ""),
         }
 
+    def _has_discard_marker(self) -> bool:
+        try:
+            value = json.loads(self.current.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return False
+        return (isinstance(value, dict)
+                and value.get("format") == RECOVERY_FORMAT
+                and value.get("discarded") is True)
+
+    def discard(self) -> dict:
+        # Keep history for diagnostics, but don't fall back to a discarded draft.
+        _atomic_json_write(
+            self.current,
+            {"format": RECOVERY_FORMAT, "discarded": True, "updated_at": datetime.now(timezone.utc).isoformat()},
+        )
+        return {"ok": True, "discarded": True}
+
     def load(self) -> dict:
+        if self._has_discard_marker():
+            return {"ok": True, "available": False, "fallback_generation": 0}
         candidates = [self.current, *sorted(self.generations.glob("*.json"), reverse=True)]
         failed = 0
         for path in candidates:
@@ -275,7 +294,7 @@ class RecoveryStore:
 
     def status(self) -> dict:
         self.cleanup()
-        candidates = [self.current, *sorted(self.generations.glob("*.json"), reverse=True)]
+        candidates = [] if self._has_discard_marker() else [self.current, *sorted(self.generations.glob("*.json"), reverse=True)]
         latest = {}
         for path in candidates:
             latest = self._read_record(path)
