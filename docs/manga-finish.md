@@ -1,6 +1,6 @@
 # Manga Finish — 実装と検証
 
-既存の「コミック変換」への同居実装です。独立したウィンドウやアプリは追加せず、一枚画像・4コマ・コミックの3ワークスペースと`.sbeproj`の形式を維持します。以下は2026-10-18時点のローカル実装です。更新版Releaseは未公開で、公開済み1.0.1配布物にはManga Finishを含みません。
+既存の「コミック変換」への同居実装です。独立したウィンドウやアプリは追加せず、一枚画像・4コマ・コミックの3ワークスペースと`.sbeproj`の形式を維持します。v1.0.2で追加しました。公開済み1.0.1配布物にはManga Finishを含みません。
 
 ## 最終設定
 
@@ -63,7 +63,7 @@ node tests/comic_converter_integration_test.cjs
 .\SpeechBubbleComicEditorApp.exe --manga-finish-self-test C:\Temp\manga-finish-check.json
 ```
 
-通常のWindowsビルドは既存の`build_release.ps1 -Version "1.0.1"`を使用します。公開済み1.0.1の配布物は置換せず、次の公開バージョンはリリース時に別途決定します。
+通常のWindowsビルドは既存の`build_release.ps1 -Version "1.0.2"`を使用します。公開済み1.0.1の配布物は置換せず、v1.0.2を別Releaseで公開します。
 
 ## ローカル確認済みの範囲
 
@@ -75,7 +75,7 @@ node tests/comic_converter_integration_test.cjs
 
 Windows CPUでの処理全体の予備測定では、4096×4096が約19.4秒・最大約1085MiB、5000×4000が約41.8秒・約1305MiBでした。測定環境・画像・設定に依存し、網点部分だけの旧Linuxベンチマークとは比較条件が異なります。
 
-この更新版のGitHub Actions実行、クリーンWindowsでのインストール／更新／アンインストール、WebView2での一連の編集操作は未確認です。Releaseの公開も行っていません。
+v1.0.2はWindows CIで回帰テスト・配布物・ライセンス同梱・EXE自己検証を行い、成功後に公開します。クリーンWindowsでのインストール／更新／アンインストール、WebView2での一連の編集操作は未確認です。変更点は[リリースノート](release-1.0.2.md)を参照してください。
 
 ## 出典
 

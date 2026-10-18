@@ -1,7 +1,7 @@
 
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 
-# Speech Bubble Comic Editor App 1.0.1
+# Speech Bubble Comic Editor App 1.0.2
 
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
@@ -22,20 +22,22 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ## 配布状況
 
-**最新版：Windows x64版 1.0.1（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.0.1です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
+**最新版：Windows x64版 1.0.2（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.0.2です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
 
 1.0.1では保存・読込のデータ保護、プロジェクト切替時の確認、外部パレットの編集同期、カスタムスタンプの同梱、Overlay PNG設定を修正しました。1.0で追加した日本語／英語UIと素材検索も引き続き利用できます。
 
-**開発中の追加機能：Manga Finish。** 以下のコミック変換の説明には、ソース版へ追加したManga Finishを含みます。既存の公開済み1.0.1配布ファイルには含まれません。Manga Finishを含む更新版のReleaseは未公開で、アプリの表示バージョンは引き続き1.0.1です。
+**1.0.2ではManga Finishを追加し、狭いレイヤーパネルで見出しが縦に折り返される問題を修正しました。** MangaScreenの著作権表示とMITライセンス全文を配布物へ同梱しています。変更点は[v1.0.2リリースノート](docs/release-1.0.2.md)を参照してください。公開済み1.0.1とその配布ファイルも保持しています。
 
-**最新版 1.0.1（Windows x64）**
+**最新版 1.0.2（Windows x64）**
 
-- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe)
-- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-portable.zip)
-- [v1.0.1 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.1)
-- [v1.0.1 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SHA256SUMS.txt)
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe)
+- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-portable.zip)
+- [v1.0.2 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.2)
+- [v1.0.2 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SHA256SUMS.txt)
 
 **旧バージョン（削除せず引き続き配布）**
+
+- v1.0.1: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.1)
 
 - v1.0: [Installer EXE](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe) / [Portable ZIP](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-portable.zip) / [Release](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
 - v0.1.8: [Installer EXE](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v0.1.8/SpeechBubbleComicEditorApp-v0.1.8-win-x64-setup.exe) / [Release](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v0.1.8)
@@ -56,7 +58,7 @@ Settingsで日本語／英語を切り替えられます。1.0では内蔵SFX 19
 
 **通常はインストーラー版を使用してください。**
 
-- インストーラー: [SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.1/SpeechBubbleComicEditorApp-v1.0.1-win-x64-setup.exe)
+- インストーラー: [SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
 - ソース版の初回起動: `setup_and_start.cmd`
 - ソース版の2回目以降: `start.cmd`
@@ -460,7 +462,7 @@ Settingsで固定の出力先を指定できます。毎回保存先を選択す
 - 3ワークスペースは独立しており、モード間のレイヤー直接移動には対応していません。
 - キャンバス背景パターンのユーザープリセット保存は未対応です。
 - AI背景削除は初回にモデルの取得が必要です。取得後の推論はローカルCPUで行います。
-- 開発中のManga Finishは、ローカルCPUテスト、Chromeでの3ワークスペース操作、原寸PNGの適用、プロジェクト保存・再読込、Windows向けビルドを確認しています。更新版に対するGitHub Actionsと、クリーンWindowsでのインストール／更新／アンインストールは未確認です。詳細は[Manga Finish実装・検証メモ](docs/manga-finish.md)を参照してください。
+- Manga Finishは、ローカルCPUテスト、Chromeでの3ワークスペース操作、原寸PNGの適用、プロジェクト保存・再読込、Windows向けビルドを確認しています。1.0.2はWindows CIで回帰テスト・配布物・ライセンス同梱・EXE自己検証を通してから公開します。クリーンWindowsでのインストール／更新／アンインストールは未確認です。詳細は[Manga Finish実装・検証メモ](docs/manga-finish.md)を参照してください。
 
 1.0.1ではWindows CIでPython・JavaScript回帰テスト、インストーラーとZIPのビルド、SHA-256検証を実施しています。クリーンなWindows環境でのインストール／更新／アンインストール、ネイティブのファイル選択、WebView2の実GUI操作は、この1.0.1の自動検証には含まれません。詳細は[v1.0.1リリースノート](docs/release-1.0.1.md)を参照してください。
 
@@ -476,7 +478,7 @@ EditorのUIソースは`web\speech-bubble-editor.html`ですが、直接表示�
 
 ソース版を`python -m desktop_app.main --portable`で起動した場合はリポジトリ内の`data`を使用します。配布EXEを`SpeechBubbleComicEditorApp.exe --portable`で起動した場合は、展開先の`_internal\data`を使用します。
 
-保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.1という値と、保存形式のバージョンは別に管理しています。
+保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.2という値と、保存形式のバージョンは別に管理しています。
 
 ## 問い合わせ・不具合報告
 

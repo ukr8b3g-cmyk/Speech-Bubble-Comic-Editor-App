@@ -10,6 +10,7 @@ a = Analysis(
     pathex=[str(root)],
     binaries=[],
     datas=[
+        (str(root / "licenses"), "licenses"),
         *copy_metadata("opencv-python-headless"),
         *collect_data_files("cv2", includes=["**/LICENSE*", "**/license*"]),
         (str(root / "web"), "web"),

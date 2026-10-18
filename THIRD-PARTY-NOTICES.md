@@ -31,6 +31,8 @@ Derived from [MangaScreen](https://github.com/ashukae/ComfyUI-MangaScreen) and [
 
 Manga Finish uses `opencv-python-headless` 4.13.0.92. Windows builds include its package metadata and license notices, including the OpenCV and bundled-component notices supplied with that distribution.
 
+A standalone copy of the following license is included as `licenses/MangaScreen-MIT.txt` (under `_internal` in the Windows application).
+
 MIT License
 
 Copyright (c) 2026 ashukae
