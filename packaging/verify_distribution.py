@@ -1,6 +1,7 @@
 """Verify the generated Windows ZIP, including the MangaScreen MIT license."""
 from pathlib import Path
 import json
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,11 @@ with tempfile.TemporaryDirectory(prefix='sbe-release-check-') as temp:
                  'README.md', 'web/speech-bubble-editor.html']:
         assert (internal / name).read_bytes() == (root / name).read_bytes(), name
     assert (app / 'THIRD-PARTY-NOTICES.md').read_bytes() == (root / 'THIRD-PARTY-NOTICES.md').read_bytes()
+    display_version = runpy.run_path(str(root / 'desktop_app/version.py'))['APP_DISPLAY_VERSION']
+    html = (internal / 'web/speech-bubble-editor.html').read_text(encoding='utf-8')
+    app_title = f'Speech Bubble Comic Editor App {display_version}'
+    assert f'<title>{app_title}</title>' in html, 'Page title version mismatch'
+    assert f'<strong>{app_title}</strong>' in html, 'Header version mismatch'
     license_text = (internal / 'licenses/MangaScreen-MIT.txt').read_text(encoding='utf-8')
     for phrase in ['Copyright (c) 2026 ashukae', 'Permission is hereby granted',
                    'THE SOFTWARE IS PROVIDED "AS IS"']:
@@ -29,5 +35,6 @@ with tempfile.TemporaryDirectory(prefix='sbe-release-check-') as temp:
                     '--manga-finish-self-test', str(report)], check=True, timeout=90)
     result = json.loads(report.read_text(encoding='utf-8'))
     assert result['ok'], result
-    print(json.dumps({'zip_assets_match_source': True, 'mangascreen_mit_included': True,
+    print(json.dumps({'zip_assets_match_source': True, 'display_version': display_version,
+                      'mangascreen_mit_included': True,
                       'opencv_license_included': True, 'exe_self_test': result}))

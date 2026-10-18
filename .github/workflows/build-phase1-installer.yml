@@ -132,9 +132,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # One-time stable publication. Do not create releases on ordinary main pushes.
+      # Publish or refresh only on an explicitly authorized release commit.
       - name: Publish v1.0.2 as latest stable release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Release v1.0.2'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (github.event.head_commit.message == 'Release v1.0.2' || github.event.head_commit.message == 'Refresh v1.0.2 assets')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,8 +146,19 @@ jobs:
             "dist/release/SpeechBubbleComicEditorApp-v1.0.2-win-x64-portable.zip",
             "dist/release/SHA256SUMS.txt"
           )
-          gh release create $tag @paths --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Speech Bubble Comic Editor App v1.0.2" --notes-file "docs/release-1.0.2.md" --draft
-          if ($LASTEXITCODE -ne 0) { throw "Draft release creation or upload failed" }
+          if ('${{ github.event.head_commit.message }}' -eq 'Refresh v1.0.2 assets') {
+            $oldTag = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha'
+            if ($LASTEXITCODE -ne 0 -or $oldTag -ne '0ba4d0ea028c4191142cf6f90a2c78675fabdc46') { throw "Unexpected v1.0.2 tag; abort refresh" }
+            gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" -f "sha=$env:GITHUB_SHA" -F force=true
+            if ($LASTEXITCODE -ne 0) { throw "v1.0.2 tag refresh failed" }
+            gh release upload $tag @paths --repo $env:GITHUB_REPOSITORY --clobber
+            if ($LASTEXITCODE -ne 0) { throw "v1.0.2 asset replacement failed" }
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file "docs/release-1.0.2.md"
+            if ($LASTEXITCODE -ne 0) { throw "Release notes refresh failed" }
+          } else {
+            gh release create $tag @paths --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Speech Bubble Comic Editor App v1.0.2" --notes-file "docs/release-1.0.2.md" --draft
+            if ($LASTEXITCODE -ne 0) { throw "Draft release creation or upload failed" }
+          }
           gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
           gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,assets,tagName --jq '{draft:.isDraft,tag:.tagName,asset_names:[.assets[].name]}'
