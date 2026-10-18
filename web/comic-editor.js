@@ -1554,6 +1554,7 @@
         }
         try {
           const digest = await sha256(file);
+          if(importOptions.canCommit && !importOptions.canCommit())return [];
           const duplicate = digest && comic.images.find((item) => item.sha256 === digest);
           if (duplicate) {
             importedIds.push(duplicate.id);
@@ -1569,6 +1570,8 @@
             source: "stored",
           };
           await attachBlob(metadata, file, false);
+          if(importOptions.canCommit && !importOptions.canCommit()){const node=runtimeImages.get(metadata.id);if(node?.src)URL.revokeObjectURL(node.src);runtimeImages.delete(metadata.id);runtimeBlobs.delete(metadata.id);return [];}
+          if(importOptions.canCommit)options.pushUndo?.();
           comic.images.push(metadata);
           await storeImageBlob(documentId(), metadata, file);
           importedIds.push(metadata.id);
@@ -1635,14 +1638,15 @@
       return sources;
     }
 
-    async function addConvertedImage(blob, name = "comic-converted.png") {
+    async function addConvertedImage(blob, name = "comic-converted.png", canCommit = () => true) {
       if (!(blob instanceof Blob)) return "";
       const safeName = String(name || "comic-converted.png").replace(/[\\/:*?"<>|]+/g, "-");
       const file = new File([blob], /\.png$/i.test(safeName) ? safeName : `${safeName}.png`, {
         type: "image/png",
         lastModified: Date.now(),
       });
-      const ids = await importFiles([file]);
+      const ids = await importFiles([file], {canCommit});
+      if(!canCommit())return "";
       const addedId = ids[0] || "";
       if (!addedId || !comic.images.some((metadata) => metadata.id === addedId)) {
         throw new Error(tr("変換画像をページ画像へ追加できませんでした。", "The converted image could not be added to Page Images."));

@@ -60,7 +60,7 @@ assert.match(converter, /comicRender/);
 assert.match(converter, /full\.width = source\.width/);
 assert.match(converter, /full\.height = source\.height/);
 assert.match(converter, /full\.toBlob/);
-assert.match(converter, /storeHistory\(options\.getDocumentId/);
+assert.match(converter, /storeHistory\(doc,/);
 assert.match(converter, /temporary_preview_files: 0/);
 for (const preset of [
   '<option value="comic">白黒コミック</option>',
@@ -116,6 +116,6 @@ for (const feature of [
 assert.match(readme, /## コミック変換/);
 assert.match(readme, /長辺768px/);
 assert.match(readme, /文書ごとに最大5件、全体512MB、30日/);
-assert.match(readme, /単純グレースケール（初期値）、白黒コミック、単純モノクロ、XDoG 100/);
+assert.match(readme, /1\. 単純グレースケール（初期選択）[\s\S]*2\. Manga Finish — 高品質漫画仕上げ[\s\S]*3\. 白黒コミック[\s\S]*4\. 単純モノクロ[\s\S]*5\. XDoG 100/);
 
 console.log("comic converter integration tests passed");

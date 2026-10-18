@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, copy_metadata
 
 
 root = Path(SPECPATH)
@@ -10,6 +10,8 @@ a = Analysis(
     pathex=[str(root)],
     binaries=[],
     datas=[
+        *copy_metadata("opencv-python-headless"),
+        *collect_data_files("cv2", includes=["**/LICENSE*", "**/license*"]),
         (str(root / "web"), "web"),
         (str(root / "README.md"), "."),
         (str(root / "LICENSE"), "."),
@@ -18,6 +20,7 @@ a = Analysis(
         (str(root / "THIRD-PARTY-NOTICES.md"), "."),
     ],
     hiddenimports=[
+        "desktop_app.manga_finish",
         *collect_submodules("uvicorn"),
         *collect_submodules("webview"),
         *collect_submodules("onnxruntime"),

@@ -56,6 +56,9 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
         if not secrets.compare_digest(str(supplied), token):
             raise HTTPException(status_code=403, detail="Invalid desktop launch token")
 
+    from .manga_finish_service import register_manga_route
+    register_manga_route(app, require_token)
+
     @app.get("/", include_in_schema=False)
     async def editor():
         configured = settings.load()

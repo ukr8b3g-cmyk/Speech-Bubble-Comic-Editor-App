@@ -7,7 +7,7 @@
   <link rel="icon" type="image/x-icon" href="./assets/speech-bubble-comic-editor-app.ico">
   <link rel="stylesheet" href="./comic-editor.css?v=0.5.0-desktop-7">
   <link rel="stylesheet" href="./general-comic-editor.css?v=general-comic-2">
-  <link rel="stylesheet" href="./comic-converter.css?v=0.1.4-multi-image-1">
+  <link rel="stylesheet" href="./comic-converter.css?v=manga-v11-0.1.4-multi-image-1">
   <link rel="stylesheet" href="./background-removal.css?v=0.1.4-edge-matting-1">
   <link rel="stylesheet" href="./quick-retouch.css?v=phase4-quick-retouch-0710-1">
   <link rel="stylesheet" href="./desktop/desktop.css?v=0.5.0-desktop-5">
@@ -21,7 +21,8 @@
   <script src="./image-crop-dialog.js?v=phase3-crop-align-1"></script>
   <script src="./comic-editor.js?v=phase3-crop-align-1"></script>
   <script src="./general-comic-editor.js?v=phase3-crop-align-1"></script>
-  <script src="./comic-converter.js?v=0.1.4-multi-image-1"></script>
+  <script src="./manga-finish-settings.js?v=manga-standard-1"></script>
+  <script src="./comic-converter.js?v=manga-mode-order-1-0.1.4-multi-image-1"></script>
   <script src="./background-removal-selection.js?v=magic-wand-1"></script>
   <script src="./background-removal-edge.js?v=0.1.4-edge-matting-1"></script>
   <script src="./background-removal.js?v=0.1.4-edge-matting-1"></script>
@@ -944,7 +945,7 @@
       const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:metadata.mime||blob.type||"image/png",blob,url,width:node.naturalWidth,height:node.naturalHeight,sha256:String(metadata.sha256||"")};
       pageImageAssets.set(id,asset);return asset;
     }
-    async function registerSingleImageAsset(blob,name="image",assetId=""){const id=assetId||`${SINGLE_IMAGE_ASSET_PREFIX}${createUuid()}`,previous=singleImageAssets.get(id);if(previous?.url)URL.revokeObjectURL(previous.url);const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight};singleImageAssets.set(id,asset);const pageAsset=await registerPageImageAsset(blob,name,id,asset);projectImageTray?.register?.(pageAsset,{workspace:"single",select:false,expand:false,notify:false});return asset;}
+    async function registerSingleImageAsset(blob,name="image",assetId="",canCommit=()=>true){const id=assetId||`${SINGLE_IMAGE_ASSET_PREFIX}${createUuid()}`,previous=singleImageAssets.get(id);if(previous?.url)URL.revokeObjectURL(previous.url);const url=URL.createObjectURL(blob),node=await loadSingleImageElement(url),asset={id,name:String(name||"image").replace(/\.[^.]+$/,""),mime:blob.type||"image/png",blob,url,image:node,width:node.naturalWidth,height:node.naturalHeight};if(!canCommit()){URL.revokeObjectURL(url);return null;}singleImageAssets.set(id,asset);const pageAsset=await registerPageImageAsset(blob,name,id,asset);projectImageTray?.register?.(pageAsset,{workspace:"single",select:false,expand:false,notify:false});return asset;}
     function singleImageAssetFor(item){return item?.type==="image"?singleImageAssets.get(String(item.image_asset_id||"")):null;}
     const imageLayerRotation=window.SpeechBubbleImageLayerRotation;
     if(!imageLayerRotation)throw new Error("SpeechBubbleImageLayerRotation must be loaded before the project editor");
@@ -958,7 +959,7 @@
     function imageLayerScale(item){const full=imageFullGeometry(item);return Math.max(10,Math.min(800,Math.round((full.w/Math.max(1,Number(item?.base_width)||full.w))*100)));}
     function fitImageLayerGeometry(asset,mode="cover"){const ratio=(mode==="contain"?Math.min:Math.max)(state.width/Math.max(1,asset.width),state.height/Math.max(1,asset.height)),w=asset.width*ratio,h=asset.height*ratio;return{x:(state.width-w)/2,y:(state.height-h)/2,w,h,base_width:w,base_height:h};}
     function createSingleImageLayer(asset,{name=asset.name,inherit=null,role="image",visible=true,locked=false,fit="cover"}={}){const geometry=inherit?imageFullGeometry(inherit):fitImageLayerGeometry(asset,fit),crop=inherit?imageCropFor(inherit):{x:0,y:0,w:1,h:1},layer={id:id(),type:"image",image_asset_id:asset.id,image_name:name,source_role:role,x:geometry.x,y:geometry.y,w:geometry.w,h:geometry.h,base_width:geometry.base_width||inherit?.base_width||geometry.w,base_height:geometry.base_height||inherit?.base_height||geometry.h,rotation:Number(inherit?.rotation)||0,opacity:Math.max(0,Math.min(1,finiteOr(inherit?.opacity,1))),lock_aspect_ratio:true,locked:inherit?inherit.locked===true:locked,visible,comic_scope:"free",comic_panel_id:"",crop};if(inherit){layer.base_width=Math.max(1,finiteOr(inherit.base_width,geometry.w));layer.base_height=Math.max(1,finiteOr(inherit.base_height,geometry.h));applyCropGeometry(layer,crop,{x:geometry.x,y:geometry.y,w:geometry.w,h:geometry.h});}return layer;}
-    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false,fit="cover"}={}){const asset=await registerSingleImageAsset(blob,name,assetId),layer=createSingleImageLayer(asset,{name,inherit,role,locked,fit});if(inherit)layer.source_image_layer_id=inherit.id;pushUndo();if(hideSource&&inherit)inherit.visible=false;const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);state.elements.splice(lastImageIndex+1,0,layer);if(select)setSelection([layer.id],layer.id);captureActiveWorkspace();syncProperties();render();updateActionState();return layer;}
+    async function addSingleImageLayerFromBlob(blob,name,{inherit=null,role="image",hideSource=false,select=true,assetId="",locked=false,fit="cover",canCommit=()=>true}={}){if(!canCommit())return null;const asset=await registerSingleImageAsset(blob,name,assetId,canCommit);if(!asset)return null;const layer=createSingleImageLayer(asset,{name,inherit,role,locked,fit});if(!canCommit()){URL.revokeObjectURL(asset.url);singleImageAssets.delete(asset.id);pageImageAssets.delete(asset.id);return null;}if(inherit)layer.source_image_layer_id=inherit.id;pushUndo();if(hideSource&&inherit)inherit.visible=false;const lastImageIndex=state.elements.reduce((last,item,index)=>item.type==="image"?index:last,-1);state.elements.splice(lastImageIndex+1,0,layer);if(select)setSelection([layer.id],layer.id);captureActiveWorkspace();syncProperties();render();updateActionState();return layer;}
     function ensurePrimarySingleImageLayer(assetId=primarySingleImageAssetId){if(activeWorkspace!=="single"||!assetId)return null;const asset=singleImageAssets.get(assetId);if(!asset)return null;let layer=state.elements.find(item=>item.type==="image"&&item.image_asset_id===assetId);if(layer)return layer;const legacy=normalizedBackgroundImage(state.backgroundImage),base=Math.max(state.width/asset.width,state.height/asset.height),w=asset.width*base*legacy.scale,h=asset.height*base*legacy.scale;layer=createSingleImageLayer(asset,{role:"original",visible:state.backgroundVisible,locked:legacy.locked});Object.assign(layer,{x:(state.width-w)/2+legacy.offsetX,y:(state.height-h)/2+legacy.offsetY,w,h,base_width:asset.width*base,base_height:asset.height*base});state.elements.unshift(layer);state.backgroundImage=normalizedBackgroundImage({attached:false});state.backgroundVisible=true;captureActiveWorkspace();return layer;}
     const state = { width: 1024, height: 1024, zoom: 1, panX: 0, panY: 0, backgroundVisible: true, canvasBackground:normalizedCanvasBackground(), backgroundImage:normalizedBackgroundImage({attached:false}), elements: [], selected: null, selection: [], vectorEditId: null, vectorAnchorIndex: null, vectorAddMode: false, drag: null, undo: [], redo: [], propertyEditSnapshot: null, canvasFromLayout: false, spaceDown: false };
     let imageCropEdit=null;
@@ -1051,7 +1052,7 @@
       document.documentElement.dataset.editorMode=activeWorkspace;
     }
     async function selectedSingleImageSource(){const layer=selectedSingleImageLayer(),asset=singleImageAssetFor(layer);if(layer&&asset){lastSingleProcessingLayerId=layer.id;return{blob:asset.blob,name:layer.image_name||asset.name,width:asset.width,height:asset.height,layer_id:layer.id,source_kind:"layer",visible:layer.visible!==false};}if(!imageLoaded||!image.naturalWidth)return null;lastSingleProcessingLayerId="";return{blob:await sourceImageBlob(),name:sourceName||"speech_bubble",width:image.naturalWidth,height:image.naturalHeight,source_kind:"legacy-background"};}
-    async function applyProcessedSingleImage(blob,name,role,sourceContext){if(!blob)return false;const sourceId=String(sourceContext?.layer_id||"");const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;const hasImage=workspaces.single.elements.some(item=>item.type==="image");if(!source&&!hasImage&&Number(sourceContext?.width)>0&&Number(sourceContext?.height)>0&&activeWorkspace==="single")scaleStateToImageSize(Number(sourceContext.width),Number(sourceContext.height));await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source),fit:source?"cover":"contain"});layoutDirty=true;scheduleAutoSave();updateActionState();return true;}
+    async function applyProcessedSingleImage(blob,name,role,sourceContext,canCommit=()=>true){if(!blob)return false;const sourceId=String(sourceContext?.layer_id||"");const source=sourceId?state.elements.find(item=>item.id===sourceId&&item.type==="image"):null;const hasImage=workspaces.single.elements.some(item=>item.type==="image");if(!source&&!hasImage&&Number(sourceContext?.width)>0&&Number(sourceContext?.height)>0&&activeWorkspace==="single")scaleStateToImageSize(Number(sourceContext.width),Number(sourceContext.height));const added=await addSingleImageLayerFromBlob(blob,name,{inherit:source||undefined,role,hideSource:Boolean(source),fit:source?"cover":"contain",canCommit});if(!added)return false;layoutDirty=true;scheduleAutoSave();updateActionState();return true;}
     function initializeComicEditor(){
       if(!["desktop","desktop-file"].includes(hostMode)||comicEditor||!window.SpeechBubbleComicEditor)return comicEditor;
       comicEditor=window.SpeechBubbleComicEditor.create({
@@ -1129,10 +1130,11 @@
       comicConverter=window.SpeechBubbleComicConverter.create({
         getMode:()=>comicEditor?.isActive()||generalComicEditor?.isActive()?"comic":"single",
         getDocumentId:()=>documentId,
+        getContextKey:()=>JSON.stringify([documentId,converterDocumentEpoch,activeWorkspace]),
         getSingleSource:selectedSingleImageSource,
         getComicSources:()=>generalComicEditor?.isActive()?generalComicEditor.getConversionSources?.()||Promise.resolve([]):comicEditor?.getConversionSources?.()||Promise.resolve([]),
-        addPageImage:(blob,name)=>generalComicEditor?.isActive()?generalComicEditor.addConvertedImage?.(blob,name):comicEditor?.addConvertedImage?.(blob,name),
-        applySingleImage:(blob,name,source)=>applyProcessedSingleImage(blob,name||`${sourceName||"speech_bubble"}-comic`,"comic-conversion",source),
+        addPageImage:(blob,name,canCommit)=>generalComicEditor?.isActive()?generalComicEditor.addConvertedImage?.(blob,name,canCommit):comicEditor?.addConvertedImage?.(blob,name,canCommit),
+        applySingleImage:(blob,name,source,canCommit)=>applyProcessedSingleImage(blob,name||`${sourceName||"speech_bubble"}-comic`,"comic-conversion",source,canCommit),
         setStatus:setSaveState,
       });
       return comicConverter;
@@ -2052,7 +2054,9 @@
     function defaultFrame(presetId="frame-border") { const preset=FRAME_BY_ID.get(presetId)||FRAME_PRESETS[0],border=Math.max(0,finiteOr(preset.border_width,36)),item={id:id(),type:"frame",frame_preset_id:preset.id,frame_label:preset.label,frame_kind:preset.frame_kind||"border",x:0,y:0,w:state.width,h:state.height,rotation:0,opacity:1,fit_to_canvas:true,pin_to_top:preset.pin_to_top!==false,frame_scale:finiteOr(preset.default_scale,100),frame_inset:finiteOr(preset.default_inset,0),border_color:preset.border_color||"#ffffff",border_width_x:border,border_width_y:border,inner_stroke_color:preset.inner_stroke_color||"#111111",inner_stroke_width:preset.inner_stroke_width||0,asset_src:preset.asset_src||"",asset_src_2x:preset.asset_src_2x||"",frame_mode:preset.frame_mode||"border",frame_slice:preset.frame_slice?{...preset.frame_slice}:null,attached_decorations:(preset.attached_decorations||[]).map(decoration=>decoration.id),fit_mode:preset.fit_mode||"cover",shadow_enabled:false,shadow_color:"#000000",shadow_opacity:.55,shadow_x:8,shadow_y:8,shadow_blur:12,glow_enabled:false,glow_color:"#ffffff",glow_opacity:.75,glow_blur:16,glow_spread:0,locked:false,visible:true};syncFrameToCanvas(item);return item;}
     const LAYOUT_ELEMENT_TYPES=new Set(["text","sfx","sfx_stamp","bubble","shape","frame","emphasis_lines","image"]);
     function normalizedLayoutPathPoints(points){if(!Array.isArray(points))return null;const clean=points.slice(0,256).filter(point=>point&&typeof point==="object"&&!Array.isArray(point)&&Number.isFinite(Number(point.x))&&Number.isFinite(Number(point.y))).map(point=>{const x=finiteOr(point.x,0),y=finiteOr(point.y,0);return{x,y,in_x:finiteOr(point.in_x,x),in_y:finiteOr(point.in_y,y),out_x:finiteOr(point.out_x,x),out_y:finiteOr(point.out_y,y)};});return clean.length>=3?clean:null;}
+    let converterDocumentEpoch=0;
     function loadState(rawOverride=null,options={}) {
+      ++converterDocumentEpoch;comicConverter?.close?.();
       let hasElementList = false,comicLayout=null,generalComicLayout=null,workspaceLayouts=null,requestedWorkspace="single";
       let data;
       try {

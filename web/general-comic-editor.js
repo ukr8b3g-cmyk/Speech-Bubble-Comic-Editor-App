@@ -314,7 +314,7 @@
     function pointerCursorAt(point) { if (!active || comic.page.structure_locked) return ""; const computed = layout(), zoom = Math.max(.1, canvasState().zoom || 1); if (core.dividerHandleAtPoint(computed, point, 16 / zoom)) return "crosshair"; const divider = core.dividerAtPoint(computed, point, 10 / zoom); return divider ? divider.axis === "x" ? "col-resize" : "row-resize" : ""; }
     function handleWheel(event, point) { if (!active || !(event.ctrlKey || event.metaKey) || selection.kind !== "image") return false; const panels = selectedImagePanels().filter((panel) => panelEditable(panel) && !panel.image_locked); if (!panels.length) return false; if (point) { const hit = core.panelAtPoint(layout(), point); if (!hit || !selectedImagePanelIds.has(hit.id) && hit.id !== selection.id) return false; } options.pushUndo?.(); const factor = event.deltaY < 0 ? 1.08 : .92; panels.forEach((panel) => panel.image_scale = core.clamp(panel.image_scale * factor, .05, 5)); changed(); syncUi(); return true; }
 
-    async function importFiles(files) { const valid = files.filter(supportedImage); if (!valid.length) { options.setStatus?.(tr("PNG / JPEG / WebPを選択してください", "Choose PNG, JPEG, or WebP"), "error"); return []; } if (comic.images.length + valid.length > MAX_IMAGES) { options.setStatus?.(tr("ページ画像は100枚までです", "Up to 100 page images are supported"), "error"); return []; } const ids = []; for (const file of valid) { if (file.size > MAX_IMAGE_BYTES) { options.setStatus?.(tr("画像が大きすぎます", "The image is too large"), "error"); continue; } const metadata = { id: `${IMAGE_PREFIX}${uuid()}`, name: String(file.name || "image").replace(/\.[^.]+$/, ""), mime: file.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" }; await attachBlob(metadata, file, false); comic.images.push(metadata); await storeImageBlob(documentId(), metadata, file); ids.push(metadata.id); } if (ids.length) { used = true; selectedTrayImageId = ids.at(-1); changed(); renderTray(); } return ids; }
+    async function importFiles(files, importOptions = {}) { const valid = files.filter(supportedImage); if (!valid.length) { options.setStatus?.(tr("PNG / JPEG / WebPを選択してください", "Choose PNG, JPEG, or WebP"), "error"); return []; } if (comic.images.length + valid.length > MAX_IMAGES) { options.setStatus?.(tr("ページ画像は100枚までです", "Up to 100 page images are supported"), "error"); return []; } const ids = []; for (const file of valid) { if (file.size > MAX_IMAGE_BYTES) { options.setStatus?.(tr("画像が大きすぎます", "The image is too large"), "error"); continue; } const metadata = { id: `${IMAGE_PREFIX}${uuid()}`, name: String(file.name || "image").replace(/\.[^.]+$/, ""), mime: file.type || "image/png", width: 1, height: 1, sha256: "", source: "stored" }; await attachBlob(metadata, file, false); if(importOptions.canCommit && !importOptions.canCommit()){const node=runtimeImages.get(metadata.id);if(node?.src){URL.revokeObjectURL(node.src);objectUrls.delete(node.src);}runtimeImages.delete(metadata.id);runtimeBlobs.delete(metadata.id);return [];} if(importOptions.canCommit)options.pushUndo?.(); comic.images.push(metadata); await storeImageBlob(documentId(), metadata, file); ids.push(metadata.id); } if (ids.length) { used = true; selectedTrayImageId = ids.at(-1); changed(); renderTray(); } return ids; }
     async function getConversionSources() {
       const panel = selectedPanel(), preferredId = panel?.image_id || selectedTrayImageId || "";
       processingPanelId = panel?.image_id ? panel.id : "";
@@ -326,11 +326,11 @@
       }
       return sources;
     }
-    async function addConvertedImage(blob, name = "comic-converted.png") {
+    async function addConvertedImage(blob, name = "comic-converted.png", canCommit = () => true) {
       if (!(blob instanceof Blob)) return "";
       const safeName = String(name || "comic-converted.png").replace(/[\\/:*?"<>|]+/g, "-"), file = new File([blob], /\.png$/i.test(safeName) ? safeName : `${safeName}.png`, { type: "image/png", lastModified: Date.now() });
-      options.pushUndo?.();
-      const ids = await importFiles([file]), addedId = ids[0] || "";
+      const ids = await importFiles([file],{canCommit}), addedId = ids[0] || "";
+      if(!canCommit())return "";
       if (!addedId) throw new Error(tr("変換画像をページ画像へ追加できませんでした。", "The converted image could not be added to Page Images."));
       const target = processingPanelId ? core.findNode(comic.tree, processingPanelId) : null;
       if (target?.kind === "panel") { target.image_id = addedId; target.image_crop = { x: 0, y: 0, w: 1, h: 1 }; target.image_visible = true; selectedImagePanelIds.clear(); selectedImagePanelIds.add(target.id); selection = { kind: "image", id: target.id }; lastPanelId = target.id; }
