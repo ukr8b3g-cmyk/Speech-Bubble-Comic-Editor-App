@@ -201,9 +201,10 @@
     .drawer-resizer { position:absolute; top:0; right:0; bottom:0; width:7px; cursor:col-resize; touch-action:none; }
     .drawer-resizer:hover,.drawer-resizer.active { background:#4fa3ff66; }
     .layers { display:flex; flex:1 1 auto; min-height:0; overflow:auto; flex-direction:column; gap:3px; margin-top:4px; padding-right:2px; }
-    .layers-title-row { display:flex; align-items:center; gap:6px; margin-top:18px; }
+    .layers-title-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:18px; }
+    .layers-title-row .dock-title { flex:1 0 auto; white-space:nowrap; }
     .layers-title-row .section-title { flex:1; margin:0; }
-    .layers-title-row button { padding:3px 6px; font-size:10px; }
+    .layers-title-row button { flex-shrink:0; white-space:nowrap; padding:3px 6px; font-size:10px; }
     html[data-palette-window="1"] body { overflow:hidden; }
     html[data-palette-window="1"] header,
     html[data-palette-window="1"] .left,
