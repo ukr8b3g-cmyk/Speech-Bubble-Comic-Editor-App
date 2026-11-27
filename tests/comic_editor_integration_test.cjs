@@ -74,7 +74,7 @@ assert.match(html, /comicEditor\?\.restore\(comicLayout\)/);
 assert.match(html, /projectSchema\.build\(\{activeWorkspace,workspaces,comic:comicEditor\?\.serialize\(\)\|\|null,generalComic:generalComicEditor\?\.serialize\(\)\|\|null\}\)/);
 assert.match(html, /comic:comicEditor\?\.serialize\(\)/);
 for (const phase of ["base", "images", "borders"]) {
-  assert.match(html, new RegExp(`comicEditor\\.drawUnderlay\\(ctx,\\{overlay:comicOverlayExport,phase:"${phase}"\\}\\)`));
+  assert.match(html, new RegExp(`comicEditor\\.drawUnderlay\\(ctx,\\{overlay:comicOverlayExport,phase:"${phase}"(?:,|\\})`));
 }
 assert.match(editor, /data-comic-panel-pattern-select="type"/);
 assert.match(editor, /data-comic-panel-pattern-fields/);

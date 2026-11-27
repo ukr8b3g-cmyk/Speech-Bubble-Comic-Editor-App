@@ -25,7 +25,7 @@
   async function desktopFetch(path, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set("X-SBE-Token", token);
-    if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+    if (typeof options.body === "string" && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     const response = await root.fetch(path, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok === false) throw new Error(payload.detail || `Desktop request failed (${response.status})`);
@@ -838,6 +838,110 @@
     return { path: await validateExportDirectory(path) };
   }
 
+  let psdWriterPromise;
+  function loadPsdWriter() {
+    if (!psdWriterPromise) {
+      psdWriterPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "./desktop/vendor/ag-psd.js";
+        script.onload = () => resolve(root.agPsd);
+        script.onerror = () => {
+          psdWriterPromise = null;
+          script.remove();
+          reject(new Error(desktopText("PSD書き出し機能を読み込めませんでした。", "Could not load the PSD exporter.")));
+        };
+        document.head.append(script);
+      });
+    }
+    return psdWriterPromise;
+  }
+
+  function installExportMenu() {
+    const imageButton = document.getElementById("exportImage");
+    const group = document.createElement("span");
+    group.className = "desktop-export-split";
+    imageButton.before(group);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.id = "exportFormatMenuButton";
+    toggle.className = "primary";
+    toggle.textContent = "▾";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "exportFormatOptions");
+    group.append(imageButton, toggle);
+
+    const menu = document.createElement("div");
+    menu.id = "exportFormatOptions";
+    menu.className = "desktop-export-options";
+    menu.hidden = true;
+    menu.innerHTML = '<button type="button" id="exportConfiguredImage"></button><button type="button" id="exportLayeredPsd" data-desktop-action="export-psd"></button>';
+    document.body.append(menu);
+    let exporting = false;
+    const update = () => { toggle.disabled = imageButton.disabled || exporting; };
+    new MutationObserver(update).observe(imageButton, { attributes: true, attributeFilter: ["disabled"] });
+    update();
+    const close = () => {
+      menu.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    };
+    toggle.addEventListener("click", () => {
+      if (!menu.hidden) { close(); return; }
+      const rect = toggle.getBoundingClientRect();
+      menu.hidden = false;
+      menu.style.top = `${rect.bottom + 4}px`;
+      menu.style.left = `${Math.max(4, Math.min(rect.right - menu.offsetWidth, root.innerWidth - menu.offsetWidth - 4))}px`;
+      toggle.setAttribute("aria-expanded", "true");
+      menu.firstElementChild.focus();
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!menu.hidden && !menu.contains(event.target) && !group.contains(event.target)) close();
+    });
+    document.addEventListener("focusin", (event) => {
+      if (!menu.hidden && !menu.contains(event.target) && !group.contains(event.target)) close();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !menu.hidden) {
+        close();
+        toggle.focus();
+      }
+    });
+    root.addEventListener("resize", close);
+    menu.firstElementChild.addEventListener("click", () => {
+      close();
+      imageButton.focus();
+      imageButton.click();
+    });
+    menu.lastElementChild.addEventListener("click", async () => {
+      close();
+      if (exporting || imageButton.disabled) return;
+      const editor = root.SpeechBubbleDesktopEditor;
+      exporting = true;
+      update();
+      try {
+        const target = await prepareExportTarget();
+        if (!target) return;
+        const writer = await loadPsdWriter();
+        const name = editor.exportSourceName();
+        editor.setStatus(desktopText("PSDを書き出しています…", "Exporting PSD…"), "info");
+        const psd = await root.createLayeredPsdDocument();
+        if (!psd) {
+          editor.setStatus(desktopText("PSDの書き出しをキャンセルしました。", "PSD export canceled."), "info");
+          return;
+        }
+        const bytes = writer.writePsdUint8Array(psd, { noBackground: true });
+        const body = new Blob([bytes], { type: "image/vnd.adobe.photoshop" });
+        const query = new URLSearchParams({ directory: target.path, source_name: name });
+        const result = await desktopFetch(`/desktop/export/psd?${query}`, { method: "POST", body });
+        editor.setStatus(desktopText("PSDを保存しました", "Saved PSD") + " — " + result.filename, "saved", result.path);
+      } catch (error) {
+        editor.setStatus(error.message || desktopText("PSDを書き出せませんでした。", "Could not export PSD."), "error");
+      } finally {
+        exporting = false;
+        update();
+      }
+    });
+  }
+
   async function refreshCacheStatus(dialog) {
     const output = dialog.querySelector("[data-desktop-cache-status]");
     if (!output) return;
@@ -1300,6 +1404,8 @@
           discardChanges: "Discard Changes",
           saveLayout: "Save Layout",
           exportImage: "Export Image",
+          exportConfiguredImage: "Export Image",
+          exportLayeredPsd: "Export Layered PSD",
         }
       : {
           undo: "元に戻す",
@@ -1311,11 +1417,19 @@
           discardChanges: "変更を破棄",
           saveLayout: "レイアウト保存",
           exportImage: "画像を書き出す",
+          exportConfiguredImage: "画像を書き出す",
+          exportLayeredPsd: "レイヤー付きPSDを書き出す",
         };
     Object.entries(text).forEach(([id, label]) => {
       const element = document.getElementById(id);
       if (element) element.textContent = label;
     });
+    const formatButton = document.getElementById("exportFormatMenuButton");
+    if (formatButton) {
+      const label = desktopText("書き出し形式を選ぶ", "Choose export format");
+      formatButton.title = label;
+      formatButton.setAttribute("aria-label", label);
+    }
     const actionLabels = selected === "en"
       ? {
           openShapeDrawer: "Browse Speech Bubbles…",
@@ -1538,6 +1652,7 @@
 
   function install() {
     document.documentElement.dataset.host = "desktop";
+    installExportMenu();
     const header = document.querySelector("body > header");
     const spacer = header?.querySelector(".spacer");
     if (header && spacer && !header.querySelector('[data-desktop-action="project-open"]')) {

@@ -8,6 +8,7 @@ import math
 import mimetypes
 import os
 import re
+import tempfile
 import threading
 import time
 import unicodedata
@@ -494,6 +495,34 @@ def _rotate_backups(path: Path, generations: int) -> None:
 
 def _client_export_root() -> Path:
     return (data_root() / "config" / "speech-bubble-editor" / "export-temp").resolve()
+
+
+async def save_desktop_psd(request: Request, directory: Path, source_name: str) -> Path:
+    settings = public_settings()
+    now = datetime.now()
+    output = _dated_output_root(directory, now, settings.date_subfolder)
+    output.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=output, suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            header = bytearray()
+            async for chunk in request.stream():
+                if len(header) < 26:
+                    header.extend(chunk[:26 - len(header)])
+                stream.write(chunk)
+            if len(header) != 26 or header[:6] != b"8BPS\x00\x01" or stream.tell() < 40:
+                raise HTTPException(status_code=422, detail="Invalid PSD file")
+        with _SAVE_LOCK:
+            stem = _export_stem(_safe_name(source_name), now, settings.filename_format, output, ".psd")
+            path = output / f"{stem}.psd"
+            if settings.backup_enabled:
+                _rotate_backups(path, settings.backup_generations)
+            temporary.replace(path)
+        return path
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _client_export_dir(token: str) -> Path:

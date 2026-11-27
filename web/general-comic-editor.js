@@ -466,46 +466,58 @@
       const images = phase === "all" || phase === "images";
       const borders = phase === "all" || phase === "borders";
       const computed = layout();
+      const paint = optionsValue.layer || ((_name, hidden, draw) => { if (!hidden) draw(); });
       target.save();
       if (!overlay && base) {
-        target.fillStyle = comic.page.background;
-        target.fillRect(0, 0, comic.page.width, comic.page.height);
+        paint(tr("ページ背景", "Page background"), false, () => {
+          target.fillStyle = comic.page.background;
+          target.fillRect(0, 0, comic.page.width, comic.page.height);
+        });
       }
-      for (const item of computed.panels) {
+      for (const [index, item] of computed.panels.entries()) {
         const panel = item.node, rect = item.rect, polygon = item.polygon || core.rectPolygon(rect);
-        if (panel.visible === false) continue;
-        target.save();
-        tracePolygon(target, polygon);
-        target.clip();
-        if (!overlay && base) {
-          const pattern = panelBackgroundPattern(panel);
-          if (pattern) { target.save(); target.translate(rect.x, rect.y); backgroundPatterns().draw(target, pattern, rect.w, rect.h); target.restore(); }
-          else { target.fillStyle = panel.background; target.fillRect(rect.x, rect.y, rect.w, rect.h); }
-        }
-        if (!overlay && images && panel.image_id && panel.image_visible !== false) {
-          const image = runtimeImages.get(panel.image_id);
-          if (image?.naturalWidth) {
-            const geometry = imageGeometry(rect, image, panel);
-            imageLayerRotation.drawCroppedImage(target, image, geometry, panel.image_rotation);
-          }
-        }
-        target.restore();
-        if (!overlay && borders && comic.page.border_width > 0) {
+        const hidden = panel.visible === false;
+        if (hidden && !optionsValue.layer) continue;
+        const panelName = tr("コマ", "Panel") + " " + (index + 1);
+        const clipped = (label, isHidden, draw) => paint(panelName + " · " + label, isHidden, () => {
           target.save();
           tracePolygon(target, polygon);
           target.clip();
-          target.strokeStyle = comic.page.border_color;
-          target.lineWidth = comic.page.border_width * 2;
-          tracePolygon(target, polygon);
-          target.stroke();
+          draw();
           target.restore();
+        });
+        if (!overlay && base) {
+          clipped(tr("背景", "Background"), hidden, () => {
+            const pattern = panelBackgroundPattern(panel);
+            if (pattern) { target.translate(rect.x, rect.y); backgroundPatterns().draw(target, pattern, rect.w, rect.h); }
+            else { target.fillStyle = panel.background; target.fillRect(rect.x, rect.y, rect.w, rect.h); }
+          });
+        }
+        if (!overlay && images && panel.image_id) {
+          const image = runtimeImages.get(panel.image_id);
+          if (image?.naturalWidth) {
+            clipped(tr("画像", "Image"), hidden || panel.image_visible === false, () => {
+              const geometry = imageGeometry(rect, image, panel);
+              imageLayerRotation.drawCroppedImage(target, image, geometry, panel.image_rotation);
+            });
+          }
+        }
+        if (!overlay && borders && comic.page.border_width > 0) {
+          clipped(tr("枠", "Border"), hidden, () => {
+            target.strokeStyle = comic.page.border_color;
+            target.lineWidth = comic.page.border_width * 2;
+            tracePolygon(target, polygon);
+            target.stroke();
+          });
         }
       }
       if (!overlay && borders && comic.page.border_width > 0) {
-        const inset = comic.page.border_width / 2;
-        target.strokeStyle = comic.page.border_color;
-        target.lineWidth = comic.page.border_width;
-        target.strokeRect(inset, inset, Math.max(0, comic.page.width - comic.page.border_width), Math.max(0, comic.page.height - comic.page.border_width));
+        paint(tr("ページ枠", "Page border"), false, () => {
+          const inset = comic.page.border_width / 2;
+          target.strokeStyle = comic.page.border_color;
+          target.lineWidth = comic.page.border_width;
+          target.strokeRect(inset, inset, Math.max(0, comic.page.width - comic.page.border_width), Math.max(0, comic.page.height - comic.page.border_width));
+        });
       }
       target.restore();
       return true;

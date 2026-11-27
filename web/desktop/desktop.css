@@ -7,6 +7,28 @@ html[data-host="desktop"] .desktop-project-actions button {
   white-space: nowrap;
 }
 
+.desktop-export-split {
+  display: inline-flex;
+  flex: none;
+}
+.desktop-export-split #exportImage { border-radius: 4px 0 0 4px; }
+.desktop-export-split #exportFormatMenuButton {
+  border-radius: 0 4px 4px 0;
+  margin-left: -1px;
+  padding-inline: 7px;
+}
+.desktop-export-options {
+  position: fixed;
+  z-index: 100;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  box-shadow: 0 4px 16px #0004;
+}
+.desktop-export-options:not([hidden]) { display: grid; gap: 2px; }
+.desktop-export-options button { text-align: start; white-space: nowrap; }
+
 .desktop-settings-dialog {
   width: min(720px, calc(100vw - 32px));
   max-width: min(720px, calc(100vw - 32px)) !important;

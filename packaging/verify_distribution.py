@@ -1,4 +1,4 @@
-"""Verify the generated Windows ZIP, including the MangaScreen MIT license."""
+"""Verify the generated Windows ZIP, bundled editor assets, and licenses."""
 from pathlib import Path
 import json
 import runpy
@@ -16,7 +16,8 @@ with tempfile.TemporaryDirectory(prefix='sbe-release-check-') as temp:
     app = destination / 'SpeechBubbleComicEditorApp'
     internal = app / '_internal'
     for name in ['licenses/MangaScreen-MIT.txt', 'THIRD-PARTY-NOTICES.md',
-                 'README.md', 'web/speech-bubble-editor.html']:
+                 'README.md', 'web/speech-bubble-editor.html', 'web/desktop/vendor/ag-psd.js',
+                 *(path.relative_to(root) for path in (root / 'licenses').glob('ag-psd-*.txt'))]:
         assert (internal / name).read_bytes() == (root / name).read_bytes(), name
     assert (app / 'THIRD-PARTY-NOTICES.md').read_bytes() == (root / 'THIRD-PARTY-NOTICES.md').read_bytes()
     display_version = runpy.run_path(str(root / 'desktop_app/version.py'))['APP_DISPLAY_VERSION']

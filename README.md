@@ -1,7 +1,7 @@
 
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 
-# Speech Bubble Comic Editor App 1.1.0
+# Speech Bubble Comic Editor App 1.2.0
 
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
@@ -22,7 +22,7 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ## 配布状況
 
-**最新版：Windows x64版 1.1.0（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.1.0です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
+**最新版：Windows x64版 1.2.0（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.2.0です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
 
 1.0.1では保存・読込のデータ保護、プロジェクト切替時の確認、外部パレットの編集同期、カスタムスタンプの同梱、Overlay PNG設定を修正しました。1.0で追加した日本語／英語UIと素材検索も引き続き利用できます。
 
@@ -30,15 +30,18 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 **1.1.0では背景削除の標準をInSPyReNetに変更しました。** ［背景削除］の［背景削除方式］で、従来のisnet-animeにも切り替えられます。各モデルは初回の確認後にダウンロードし、次回からは保存済みのものを使います。[v1.1.0リリースノート](docs/release-1.1.0.md)
 
-**最新版 1.1.0（Windows x64）**
+**最新版 1.2.0（Windows x64）**
 
-- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe)
-- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-portable.zip)
-- [v1.1.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.1.0)
-- [v1.1.0 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SHA256SUMS.txt)
+一枚画像・縦4コマ漫画・コミックの3画面でレイヤー付きPSDを書き出せるようになりました。Photoshopでセリフのレイヤーだけを非表示にすると、吹き出しと人物が残ります。[v1.2.0リリースノート](docs/release-1.2.0.md)
+
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.2.0/SpeechBubbleComicEditorApp-v1.2.0-win-x64-setup.exe)
+- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.2.0/SpeechBubbleComicEditorApp-v1.2.0-win-x64-portable.zip)
+- [v1.2.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.2.0)
+- [v1.2.0 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.2.0/SHA256SUMS.txt)
 
 **旧バージョン（削除せず引き続き配布）**
 
+- v1.1.0: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.1.0)
 - v1.0.2: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.2)
 - v1.0.1: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.1)
 
@@ -61,7 +64,7 @@ Settingsで日本語／英語を切り替えられます。1.0では内蔵SFX 19
 
 **通常はインストーラー版を使用してください。**
 
-- インストーラー: [SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe)
+- インストーラー: [SpeechBubbleComicEditorApp-v1.2.0-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.2.0/SpeechBubbleComicEditorApp-v1.2.0-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
 - ソース版の初回起動: `setup_and_start.cmd`
 - ソース版の2回目以降: `start.cmd`
@@ -104,7 +107,7 @@ EXE版または`start.cmd`からの起動が通常の利用方法です。シス
 - **文字**: Windowsのシステムフォント、日本語フォント、縦書き、フォントお気に入り・履歴
 - **コミック編集**: コマ分割・結合、斜め境界、コマ間隔、コマ背景、画像のCrop / Rotation、ページ／コマへの素材配置
 - **プロジェクト**: `.sbeproj`保存・再読込、自動保存、復元、3ワークスペースの編集状態をまとめて保持
-- **書き出し**: PNG / JPEG / WebP、透明Overlay PNG、Canvas表示に基づく画像書き出し
+- **書き出し**: PNG / JPEG / WebP、透明Overlay PNG、レイヤー付きPSD
 - **UI**: 日本語／英語、Light / Dark、Properties / Layersのフローティングパネル、素材Drawer状態の保存
 
 ## 3つの編集モード
@@ -455,6 +458,7 @@ Properties／Layersの位置と大きさは自動保存されます。標準配�
 - Save Project／プロジェクト保存: 3ワークスペースのレイアウトと作品内の画像を`.sbeproj`へ保存し、後から再編集
 - Save Layout／レイアウト保存（`Ctrl+S`）: 編集レイアウトをローカルのユーザーデータへ保存。`.sbeproj`ファイルの更新や画像出力は行いません
 - Export Image／画像を書き出す: 現在のワークスペースのCanvasで見えている合成結果をPNG／JPEG／WebPとして書き出し
+- レイヤー付きPSD: ［画像を書き出す］の右側の［▼］から［レイヤー付きPSDを書き出す］を選びます。一枚画像・縦4コマ漫画・コミックの各画面で使えます。PSD上で「セリフ・文字 · こんにちは」のように文言が付いたレイヤーを非表示にすると、人物と吹き出しを残してそのセリフだけを消せます。文字は縦書きや縁取りの見た目を保つため画像レイヤーとして保存します。文言を変えるときは元の `.sbeproj` を開いてください。
 
 Settingsで固定の出力先を指定できます。毎回保存先を選択する設定にした場合は、Export Imageのたびに保存先を選びます。
 
@@ -481,7 +485,7 @@ EditorのUIソースは`web\speech-bubble-editor.html`ですが、直接表示�
 
 ソース版を`python -m desktop_app.main --portable`で起動した場合はリポジトリ内の`data`を使用します。配布EXEを`SpeechBubbleComicEditorApp.exe --portable`で起動した場合は、展開先の`_internal\data`を使用します。
 
-保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.1.0という値と、保存形式のバージョンは別に管理しています。
+保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.2.0という値と、保存形式のバージョンは別に管理しています。
 
 ## 問い合わせ・不具合報告
 

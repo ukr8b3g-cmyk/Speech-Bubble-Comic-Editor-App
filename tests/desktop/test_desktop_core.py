@@ -4,6 +4,7 @@ import base64
 import hashlib
 import io
 import json
+import struct
 import tempfile
 import time
 import unittest
@@ -693,6 +694,33 @@ class DesktopCoreTest(unittest.TestCase):
             self.assertEqual(loaded.status_code, 200, loaded.text)
             self.assertEqual(loaded.json()["layout"]["canvas"], {"width": 720, "height": 2160})
             self.assertEqual(len(loaded.json()["images"]), 1)
+
+    def test_layered_psd_save_uses_export_preferences_and_preserves_existing_files_on_error(self) -> None:
+        # Valid 1 px RGB PSD, with raw image data to detect any re-encoding during save.
+        psd = struct.pack(">4sH6xHIIHHIIIH3B", b"8BPS", 1, 3, 1, 1, 8, 3, 0, 0, 0, 0, 242, 154, 76)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = make_paths(root / "app")
+            output = root / "selected-output"
+            output.mkdir()
+            SettingsStore(paths.settings).save({"filename_format": "source_sequence", "date_subfolder": "year_month"})
+            client = TestClient(create_app(paths, "desktop-test-token"))
+            url = "/desktop/export/psd"
+            headers = {"X-SBE-Token": "desktop-test-token"}
+            params = {"directory": str(output), "source_name": "../Page"}
+            self.assertEqual(client.post(url, params=params, content=psd).status_code, 403)
+            for sequence in (1, 2):
+                saved = client.post(url, params=params, headers=headers, content=psd)
+                self.assertEqual(saved.status_code, 200, saved.text)
+                path = Path(saved.json()["path"])
+                self.assertEqual(path.name, f"Page_{sequence:04d}.psd")
+                self.assertRegex(path.parent.name, r"^\d{4}-\d{2}$")
+                self.assertEqual(path.parent.parent, output)
+                self.assertEqual(path.read_bytes(), psd)
+            invalid = client.post(url, params=params, headers=headers, content=b"truncated")
+            self.assertEqual(invalid.status_code, 422)
+            self.assertEqual(len(list(output.rglob("*.psd"))), 2)
+            self.assertEqual(list(output.rglob("*.tmp")), [])
 
     def test_desktop_export_writes_to_selected_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

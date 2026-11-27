@@ -1972,108 +1972,102 @@
 
     function drawUnderlay(target, optionsValue = {}) {
       if (!comic.enabled) return false;
-      if (comic.page.visible === false) return true;
+      const pageHidden = comic.page.visible === false;
+      if (pageHidden && !optionsValue.layer) return true;
       const overlay = optionsValue.overlay === true;
       const phase = optionsValue.phase || "all";
       const drawBase = phase === "all" || phase === "base";
       const drawImages = phase === "all" || phase === "images";
       const drawBorders = phase === "all" || phase === "borders";
       const computed = layout();
+      const paint = optionsValue.layer || ((_name, hidden, draw) => { if (!hidden) draw(); });
       target.save();
       if (!overlay && drawBase) {
-        target.fillStyle = comic.page.background;
-        target.fillRect(0, 0, canvasState().width, canvasState().height);
+        paint(tr("ページ背景", "Page background"), pageHidden, () => {
+          target.fillStyle = comic.page.background;
+          target.fillRect(0, 0, canvasState().width, canvasState().height);
+        });
       }
       if (!overlay && drawBase) {
-        for (const heading of comic.headings) {
-          if (heading.visible === false) continue;
-          target.fillStyle = heading.background;
-          target.fillRect(heading.x, heading.y, heading.width, heading.height);
-          if (heading.border_width > 0) {
-            const inset = heading.border_width / 2;
-            target.strokeStyle = heading.border_color || "#111111";
-            target.lineWidth = heading.border_width;
-            target.strokeRect(
-              heading.x + inset,
-              heading.y + inset,
-              Math.max(0, heading.width - heading.border_width),
-              Math.max(0, heading.height - heading.border_width),
-            );
-          }
+        for (const [index, heading] of comic.headings.entries()) {
+          paint(tr("見出し枠", "Heading box") + " " + (index + 1), pageHidden || heading.visible === false, () => {
+            target.fillStyle = heading.background;
+            target.fillRect(heading.x, heading.y, heading.width, heading.height);
+            if (heading.border_width > 0) {
+              const inset = heading.border_width / 2;
+              target.strokeStyle = heading.border_color || "#111111";
+              target.lineWidth = heading.border_width;
+              target.strokeRect(
+                heading.x + inset,
+                heading.y + inset,
+                Math.max(0, heading.width - heading.border_width),
+                Math.max(0, heading.height - heading.border_width),
+              );
+            }
+          });
         }
       }
-      for (const item of computed.panels) {
+      for (const [index, item] of computed.panels.entries()) {
         const panel = item.node;
         const rect = item.rect;
-        if (panel.visible === false) continue;
-        target.save();
-        target.beginPath();
-        target.rect(rect.x, rect.y, rect.w, rect.h);
-        target.clip();
+        const hidden = pageHidden || panel.visible === false;
+        if (hidden && !optionsValue.layer) continue;
+        const panelName = tr("コマ", "Panel") + " " + (index + 1);
+        const clipped = (label, isHidden, draw) => paint(panelName + " · " + label, isHidden, () => {
+          target.save();
+          target.beginPath();
+          target.rect(rect.x, rect.y, rect.w, rect.h);
+          target.clip();
+          draw();
+          target.restore();
+        });
         if (!overlay && drawBase) {
-          const pattern = panelBackgroundPattern(panel);
-          if (pattern) {
-            target.save();
-            target.translate(rect.x, rect.y);
-            backgroundPatterns()?.draw(target, pattern, rect.w, rect.h);
-            target.restore();
-          } else {
-            target.fillStyle = panel.background;
-            target.fillRect(rect.x, rect.y, rect.w, rect.h);
-          }
+          clipped(tr("背景", "Background"), hidden, () => {
+            const pattern = panelBackgroundPattern(panel);
+            if (pattern) {
+              target.translate(rect.x, rect.y);
+              backgroundPatterns()?.draw(target, pattern, rect.w, rect.h);
+            } else {
+              target.fillStyle = panel.background;
+              target.fillRect(rect.x, rect.y, rect.w, rect.h);
+            }
+          });
         }
-        if (!overlay && drawImages) {
-          const image = panel.image_visible === false
-            ? null
-            : panel.image_id === "source"
-              ? sourceImage()
-              : runtimeImages.get(panel.image_id);
+        if (!overlay && drawImages && panel.image_id) {
+          const image = panel.image_id === "source" ? sourceImage() : runtimeImages.get(panel.image_id);
           if (image?.naturalWidth && image?.naturalHeight) {
-            const crop = panelImageCrop(panel);
-            const sourceX = Math.round(crop.x * image.naturalWidth), sourceY = Math.round(crop.y * image.naturalHeight);
-            const sourceW = Math.max(1, Math.min(image.naturalWidth - sourceX, Math.round(crop.w * image.naturalWidth))), sourceH = Math.max(1, Math.min(image.naturalHeight - sourceY, Math.round(crop.h * image.naturalHeight)));
-            const fitted = core.imageFit(
-              rect,
-              sourceW,
-              sourceH,
-              panel.fit,
-              panel.image_scale,
-              panel.image_offset_x,
-              panel.image_offset_y,
-            );
-            imageLayerRotation.drawCroppedImage(target, image, { ...fitted, sourceX, sourceY, sourceW, sourceH }, panel.image_rotation);
+            clipped(tr("画像", "Image"), hidden || panel.image_visible === false, () => {
+              const crop = panelImageCrop(panel);
+              const sourceX = Math.round(crop.x * image.naturalWidth), sourceY = Math.round(crop.y * image.naturalHeight);
+              const sourceW = Math.max(1, Math.min(image.naturalWidth - sourceX, Math.round(crop.w * image.naturalWidth))), sourceH = Math.max(1, Math.min(image.naturalHeight - sourceY, Math.round(crop.h * image.naturalHeight)));
+              const fitted = core.imageFit(rect, sourceW, sourceH, panel.fit, panel.image_scale, panel.image_offset_x, panel.image_offset_y);
+              imageLayerRotation.drawCroppedImage(target, image, { ...fitted, sourceX, sourceY, sourceW, sourceH }, panel.image_rotation);
+            });
           }
         }
         if (panel.tone && drawImages) {
-          const pattern = tonePattern(target, panel.tone);
-          if (pattern) {
-            target.save();
-            target.translate(panel.tone.offset_x || 0, panel.tone.offset_y || 0);
-            target.fillStyle = pattern;
-            target.fillRect(
-              rect.x - (panel.tone.offset_x || 0),
-              rect.y - (panel.tone.offset_y || 0),
-              rect.w,
-              rect.h,
-            );
-            target.restore();
-          }
+          clipped(tr("トーン", "Tone"), hidden, () => {
+            const pattern = tonePattern(target, panel.tone);
+            if (pattern) {
+              target.translate(panel.tone.offset_x || 0, panel.tone.offset_y || 0);
+              target.fillStyle = pattern;
+              target.fillRect(rect.x - (panel.tone.offset_x || 0), rect.y - (panel.tone.offset_y || 0), rect.w, rect.h);
+            }
+          });
         }
-        target.restore();
       }
       if (comic.page.border_width > 0 && !overlay && drawBorders) {
         const inset = comic.page.border_width / 2;
         target.strokeStyle = comic.page.border_color;
         target.lineWidth = comic.page.border_width;
         target.lineCap = "butt";
-        for (const item of computed.panels) {
-          if (item.node.visible === false) continue;
-          target.strokeRect(
+        for (const [index, item] of computed.panels.entries()) {
+          paint(tr("コマ", "Panel") + " " + (index + 1) + " · " + tr("枠", "Border"), pageHidden || item.node.visible === false, () => target.strokeRect(
             item.rect.x + inset,
             item.rect.y + inset,
             Math.max(0, item.rect.w - comic.page.border_width),
             Math.max(0, item.rect.h - comic.page.border_width),
-          );
+          ));
         }
       }
       target.restore();

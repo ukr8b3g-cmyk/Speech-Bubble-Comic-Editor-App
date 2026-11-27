@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Speech Bubble Comic Editor App 1.1.0</title>
+  <title>Speech Bubble Comic Editor App 1.2.0</title>
   <link rel="icon" type="image/x-icon" href="./assets/speech-bubble-comic-editor-app.ico">
   <link rel="stylesheet" href="./comic-editor.css?v=0.5.0-desktop-7">
   <link rel="stylesheet" href="./general-comic-editor.css?v=general-comic-2">
   <link rel="stylesheet" href="./comic-converter.css?v=manga-v11-0.1.4-multi-image-1">
   <link rel="stylesheet" href="./background-removal.css?v=0.1.4-edge-matting-1">
   <link rel="stylesheet" href="./quick-retouch.css?v=phase4-quick-retouch-0710-1">
-  <link rel="stylesheet" href="./desktop/desktop.css?v=0.5.0-desktop-5">
+  <link rel="stylesheet" href="./desktop/desktop.css?v=layered-psd-1">
   <script src="./asset-labels.js?v=1.0"></script>
   <script src="./project-schema.js?v=project-schema-1"></script>
   <script src="./editor-mode-controller.js?v=general-comic-1"></script>
@@ -19,8 +19,8 @@
   <script src="./general-comic-core.js?v=phase3-crop-align-1"></script>
   <script src="./comic-panels.js?v=phase3-crop-align-1"></script>
   <script src="./image-crop-dialog.js?v=phase3-crop-align-1"></script>
-  <script src="./comic-editor.js?v=phase3-crop-align-1"></script>
-  <script src="./general-comic-editor.js?v=phase3-crop-align-1"></script>
+  <script src="./comic-editor.js?v=layered-psd-1"></script>
+  <script src="./general-comic-editor.js?v=layered-psd-1"></script>
   <script src="./manga-finish-settings.js?v=manga-standard-1"></script>
   <script src="./comic-converter.js?v=manga-mode-order-1-0.1.4-multi-image-1"></script>
   <script src="./background-removal-selection.js?v=magic-wand-1"></script>
@@ -29,7 +29,7 @@
   <script src="./quick-retouch-core.js?v=phase4-quick-retouch-0710-1"></script>
   <script src="./quick-retouch.js?v=phase4-quick-retouch-0710-1"></script>
   <script src="./canvas-background-patterns.js?v=0.1.4-patterns-1"></script>
-  <script src="./desktop/desktop-shell.js?v=0.1.4-multi-image-1"></script>
+  <script src="./desktop/desktop-shell.js?v=layered-psd-1"></script>
   <script>
     (() => {
       const requested = new URLSearchParams(location.search).get("theme");
@@ -422,7 +422,7 @@
 </head>
 <body>
   <header>
-    <strong>Speech Bubble Comic Editor App 1.1.0</strong>
+    <strong>Speech Bubble Comic Editor App 1.2.0</strong>
     <div class="toolbar-group"><button type="button" data-desktop-action="project-new">New Project</button><button type="button" data-desktop-action="project-open">Open Project</button><button type="button" data-desktop-action="project-save">Save Project</button></div><span class="toolbar-separator"></span>
     <div class="toolbar-group"><button id="undo" title="Undo the last edit (Ctrl+Z)">Undo</button><button id="redo" title="Redo the last undone edit (Ctrl+Y / Ctrl+Shift+Z)">Redo</button></div><span class="toolbar-separator"></span>
     <div class="toolbar-group"><button id="fit" title="Fit the image to the editor window (Ctrl+0)">Fit</button><button id="minus" title="Zoom out">−</button><span id="zoom">100%</span><button id="plus" title="Zoom in">+</button></div><span class="toolbar-separator"></span>
@@ -882,7 +882,7 @@
     const EXPORT_DIRECTORY_DB_NAME = "speech-bubble-editor-export-directory";
     const EXPORT_DIRECTORY_DB_STORE = "directories";
     const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    let ctx = canvas.getContext("2d");
     const cleanSceneCanvas = document.createElement("canvas");
     const cleanSceneContext = cleanSceneCanvas.getContext("2d");
     const viewport = document.getElementById("viewport");
@@ -2453,6 +2453,9 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function drawElement(item){
       if(item.visible===false||(comicOverlayExport&&item.type==="image"))return;
       const structuralEditor=activeStructuralEditor();if(structuralEditor?.shouldSkipPanelScopedItem?.(item))return;
+      drawClippedElement(item);
+    }
+    function drawClippedElement(item){
       const clip=elementClipShape(item);
       if(clip){ctx.save();ctx.beginPath();traceClipShape(ctx,clip);ctx.clip();drawElementBody(item);ctx.restore();}
       else drawElementBody(item);
@@ -2693,6 +2696,81 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function deleteVectorPoint(){const item=state.elements.find(element=>element.id===state.vectorEditId);if(!item||state.vectorAnchorIndex===null||item.path_points.length<=3)return;pushUndo();item.path_points.splice(state.vectorAnchorIndex,1);state.vectorAnchorIndex=Math.min(state.vectorAnchorIndex,item.path_points.length-1);syncProperties();render();}
     function updateLivePreviewCanvas(){const maxEdge=480,previewScale=Math.min(1,maxEdge/Math.max(state.width,state.height)),width=Math.max(1,Math.round(state.width*previewScale)),height=Math.max(1,Math.round(state.height*previewScale));if(livePreviewCanvas.width!==width)livePreviewCanvas.width=width;if(livePreviewCanvas.height!==height)livePreviewCanvas.height=height;livePreviewContext.clearRect(0,0,width,height);livePreviewContext.drawImage(cleanSceneCanvas,0,0,width,height);pendingLivePreview=livePreviewCanvas;return livePreviewCanvas;}
     function snapshotCleanSceneCanvas(){const snapshot=document.createElement("canvas");snapshot.width=cleanSceneCanvas.width;snapshot.height=cleanSceneCanvas.height;snapshot.getContext("2d").drawImage(cleanSceneCanvas,0,0);return snapshot;}
+    function psdElementName(item){
+      switch(item.type){
+        case "text": return uiText("セリフ・文字","Text") + (item.text ? " · " + item.text.replace(/\s+/g," ").slice(0,90) : "");
+        case "image": return uiText("画像","Image") + (item.image_name ? " · " + item.image_name : "");
+        case "bubble": return uiText("吹き出し","Bubble") + " · " + presetLabel(item);
+        case "sfx": return builtinAssetDisplayLabel(item);
+        case "emphasis_lines": return uiText("集中線","Emphasis lines") + " · " + (EMPHASIS_BY_ID.get(item.preset)?.label || "Center");
+        case "frame": return item.frame_label || uiText("フレーム","Frame");
+        default: return item.type;
+      }
+    }
+    function cropPsdLayer(target,width,height){
+      const pixels=target.getImageData(0,0,width,height), rgba=pixels.data;
+      let left=width,right=-1,top=height,bottom=-1;
+      for(let y=0;y<height;y++){
+        const row=y*width;
+        let first=0,last=width-1;
+        while(first<width && rgba[(row+first)*4+3]===0)first++;
+        if(first===width)continue;
+        while(last>first && rgba[(row+last)*4+3]===0)last--;
+        left=Math.min(left,first); right=Math.max(right,last);
+        top=Math.min(top,y); bottom=y;
+      }
+      if(right<0)return {left:0,top:0,imageData:target.createImageData(1,1)};
+      if(left===0 && top===0 && right===width-1 && bottom===height-1)return {left,top,imageData:pixels};
+      const w=right-left+1, h=bottom-top+1, imageData=target.createImageData(w,h);
+      for(let y=0;y<h;y++){
+        const start=((top+y)*width+left)*4;
+        imageData.data.set(rgba.subarray(start,start+w*4),y*w*4);
+      }
+      return {left,top,imageData};
+    }
+    async function createLayeredPsdDocument(){
+      if(!hasEditableDocument())throw new Error(uiText("画像または漫画ページを用意してください","Load an image or create a comic page"));
+      if(comicEditor && !comicEditor.confirmExport())return null;
+      flushPendingRender();
+      const assets=new Set();
+      for(const item of state.elements){
+        let asset;
+        if(item.type==="image")asset=singleImageAssetFor(item)?.image;
+        else if(item.type==="sfx" && !basicSymbolKindFor(item))asset=sfxImageFor(item);
+        else if(item.type==="frame"){
+          const preset=FRAME_BY_ID.get(item.frame_preset_id)||FRAME_PRESETS[0];
+          asset=frameImageFor(item.asset_src?item:preset,item);
+        }else if(item.type==="bubble"){
+          const preset=PRESET_BY_ID.get(item.preset_id);
+          if(isDialoguePreset(preset))asset=dialogueAssetImage(preset);
+        }
+        if(asset && !asset.complete)assets.add(asset);
+      }
+      // Missing assets use the same fallback as the on-screen renderer.
+      await Promise.all([document.fonts?.ready,...Array.from(assets,asset=>asset.decode().catch(()=>{}))]);
+      flushPendingEmphasisRegeneration();
+      renderCanvas();
+      const composite=snapshotCleanSceneCanvas(), {width,height}=composite;
+      const scratch=document.createElement("canvas");
+      scratch.width=width; scratch.height=height;
+      // Match the editor's accelerated image interpolation on scaled and rotated layers.
+      const target=scratch.getContext("2d",{willReadFrequently:false}), children=[];
+      const screenContext=ctx;
+      try{
+        // The element painters share ctx. Only redirect it during this synchronous pass.
+        ctx=target;
+        drawSceneContents((name,hidden,paint)=>{
+          target.clearRect(0,0,width,height);
+          paint();
+          children.push({name,hidden,...cropPsdLayer(target,width,height)});
+        });
+      }finally{
+        ctx=screenContext;
+        scratch.width=scratch.height=0;
+      }
+      return {width,height,canvas:composite,children};
+    }
+    window.createLayeredPsdDocument=createLayeredPsdDocument;
     function canvasPngBlob(source){return new Promise((resolve,reject)=>source.toBlob(blob=>blob?resolve(blob):reject(new Error("Editor表示を画像化できませんでした。")),"image/png"));}
     async function captureWysiwygExport(){
       flushPendingRender();
@@ -3309,26 +3387,35 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function endImageCropPointer(){if(!imageCropEdit?.drag)return false;imageCropEdit.drag=null;syncProperties();requestRender({canvas:true,layers:true,preview:false});return true;}
     function drawImageCropOverlay(){const item=activeImageCropItem(),asset=singleImageAssetFor(item);if(!item||!asset?.image?.complete)return;const full=imageFullGeometry(item),cropRect={x:item.x,y:item.y,w:item.w,h:item.h},z=Math.max(.1,state.zoom);ctx.save();ctx.beginPath();ctx.rect(0,0,state.width,state.height);ctx.rect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);try{ctx.clip("evenodd");}catch{ctx.clip();}ctx.fillStyle="rgba(0,0,0,.34)";ctx.fillRect(0,0,state.width,state.height);ctx.globalAlpha=.28;ctx.drawImage(asset.image,full.x,full.y,full.w,full.h);ctx.restore();ctx.save();ctx.strokeStyle="#f3f6f8";ctx.lineWidth=2/z;ctx.setLineDash([8/z,5/z]);ctx.strokeRect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);ctx.setLineDash([]);const size=9/z,handles=[[cropRect.x,cropRect.y],[cropRect.x+cropRect.w/2,cropRect.y],[cropRect.x+cropRect.w,cropRect.y],[cropRect.x,cropRect.y+cropRect.h/2],[cropRect.x+cropRect.w,cropRect.y+cropRect.h/2],[cropRect.x,cropRect.y+cropRect.h],[cropRect.x+cropRect.w/2,cropRect.y+cropRect.h],[cropRect.x+cropRect.w,cropRect.y+cropRect.h]];for(const [x,y] of handles){ctx.fillStyle="#fff";ctx.fillRect(x-size/2,y-size/2,size,size);ctx.strokeStyle="#111";ctx.lineWidth=1/z;ctx.strokeRect(x-size/2,y-size/2,size,size);}ctx.restore();}
 
+    function drawSceneContents(layer){
+      const drawItem=layer ? item=>{
+        const hidden=item.visible===false||Boolean(activeStructuralEditor()?.shouldSkipPanelScopedItem?.(item));
+        layer(psdElementName(item),hidden,()=>drawClippedElement(item));
+      } : drawElement;
+      if(generalComicEditor?.isActive()){
+        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"base",layer});
+        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"images",layer});
+        state.elements.forEach(drawItem);
+        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"borders",layer});
+      }else if(comicEditor?.isActive()){
+        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"base",layer});
+        state.elements.filter(item=>item.comic_scope==="panel"&&item.comic_stack==="below_image").forEach(drawItem);
+        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"images",layer});
+        state.elements.filter(item=>item.comic_scope==="panel"&&item.comic_stack!=="below_image").forEach(drawItem);
+        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"borders",layer});
+        state.elements.filter(item=>item.comic_scope!=="panel").forEach(drawItem);
+      }else{
+        const drawBackground=()=>canvasBackgroundPatterns?.draw(ctx,state.canvasBackground,state.width,state.height);
+        if(layer)layer(uiText("キャンバス背景","Canvas background"),!state.backgroundVisible,drawBackground);
+        else if(state.backgroundVisible)drawBackground();
+        state.elements.forEach(drawItem);
+      }
+    }
     function renderCanvas(){
       const started=DEBUG_RENDER?performance.now():0;
       normalizePinnedFrameOrder();
       setCanvasSize(); ctx.clearRect(0,0,state.width,state.height);
-      if(generalComicEditor?.isActive()){
-        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"base"});
-        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"images"});
-        state.elements.forEach(drawElement);
-        generalComicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"borders"});
-      }else if(comicEditor?.isActive()){
-        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"base"});
-        state.elements.filter(item=>item.comic_scope==="panel"&&item.comic_stack==="below_image").forEach(drawElement);
-        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"images"});
-        state.elements.filter(item=>item.comic_scope==="panel"&&item.comic_stack!=="below_image").forEach(drawElement);
-        comicEditor.drawUnderlay(ctx,{overlay:comicOverlayExport,phase:"borders"});
-        state.elements.filter(item=>item.comic_scope!=="panel").forEach(drawElement);
-      }else{
-        if(state.backgroundVisible)canvasBackgroundPatterns?.draw(ctx,state.canvasBackground,state.width,state.height);
-        state.elements.forEach(drawElement);
-      }
+      drawSceneContents();
       if(cleanSceneCanvas.width!==canvas.width)cleanSceneCanvas.width=canvas.width;if(cleanSceneCanvas.height!==canvas.height)cleanSceneCanvas.height=canvas.height;cleanSceneContext.clearRect(0,0,cleanSceneCanvas.width,cleanSceneCanvas.height);cleanSceneContext.drawImage(canvas,0,0);
       comicEditor?.drawOverlay(ctx);
       generalComicEditor?.drawOverlay(ctx);
@@ -4032,6 +4119,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
       restoreWorkspaceView(workspaces[activeWorkspace],false);syncProperties();requestRender({canvas:true,layers:true,preview:false});updateActionState();
     }
     window.SpeechBubbleDesktopEditor={
+      exportSourceName:()=>sourceName||"speech_bubble",
       snapshot:desktopSnapshot,
       markProjectSaved,
       hasUnsavedChanges:hasUncommittedProjectChanges,

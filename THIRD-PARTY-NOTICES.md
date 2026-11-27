@@ -12,6 +12,8 @@ Unless otherwise stated, the source code, built-in speech bubbles, SFX assets, c
 
 ## Runtime and platform components
 
+Layered PSD export uses the browser bundle from [ag-psd 34.2.3](https://www.npmjs.com/package/ag-psd/v/34.2.3) (MIT). It includes base64-js, buffer and pako (MIT), ieee754 (BSD-3-Clause), the zlib port used by pako, and portions of JPEG decoding and color conversion under Apache-2.0. The license texts and attribution are included under `licenses/ag-psd-*.txt`.
+
 Python, FastAPI, pywebview, Pillow, browser APIs, system fonts, and other runtime components remain subject to their respective licenses and terms. Windows distributions package the required Python runtime and application dependencies; browser APIs and system fonts are supplied by the platform.
 
 ## AI background removal

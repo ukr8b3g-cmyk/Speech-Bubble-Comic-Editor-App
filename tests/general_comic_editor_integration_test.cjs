@@ -85,7 +85,7 @@ assert.match(generalEditor, /phase === "all" \|\| phase === "base"/);
 assert.match(generalEditor, /phase === "all" \|\| phase === "images"/);
 assert.match(generalEditor, /phase === "all" \|\| phase === "borders"/);
 assert.match(generalEditor, /const overlay = optionsValue\.overlay === true/);
-assert.match(html, /generalComicEditor\.drawUnderlay\(ctx,\{overlay:comicOverlayExport,phase:"base"\}\)/);
+assert.match(html, /generalComicEditor\.drawUnderlay\(ctx,\{overlay:comicOverlayExport,phase:"base"(?:,|\})/);
 assert.match(generalEditor, /target\.strokeRect\(inset, inset, Math\.max\(0, comic\.page\.width - comic\.page\.border_width\)/);
 for (const guide of ["margin / 2", "margin", "margin * 2"]) assert.ok(generalEditor.includes(`guide(${guide},`));
 assert.match(generalEditor, /general_comic_scope = "panel"/);

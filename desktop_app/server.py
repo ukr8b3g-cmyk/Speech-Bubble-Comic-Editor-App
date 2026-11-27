@@ -10,7 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from speech_bubble_editor.api import register_routes
+from speech_bubble_editor.api import register_routes, save_desktop_psd
 
 from .background_removal import BackgroundRemovalService, MAX_IMAGE_BYTES, MODELS
 from .paths import DesktopPaths
@@ -161,11 +161,8 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
         payload = await request.json()
         return {"ok": True, "settings": settings.save(payload if isinstance(payload, dict) else {})}
 
-    @app.post("/desktop/export-directory/validate")
-    async def validate_export_directory(request: Request, x_sbe_token: str = Header(default="")):
-        require_token(request, x_sbe_token)
-        payload = await request.json()
-        raw = str(payload.get("path", "") or "").strip()
+    def export_directory(value: str) -> Path:
+        raw = str(value or "").strip()
         path = Path(raw).expanduser()
         if not raw or not path.is_absolute():
             raise HTTPException(status_code=400, detail="出力フォルダーは絶対パスで指定してください。")
@@ -177,7 +174,20 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="出力先はフォルダーを指定してください。")
         if not os.access(resolved, os.W_OK):
             raise HTTPException(status_code=400, detail="出力フォルダーへ書き込めません。")
-        return {"ok": True, "path": str(resolved)}
+        return resolved
+
+    @app.post("/desktop/export-directory/validate")
+    async def validate_export_directory(request: Request, x_sbe_token: str = Header(default="")):
+        require_token(request, x_sbe_token)
+        payload = await request.json()
+        return {"ok": True, "path": str(export_directory(payload.get("path", "")))}
+
+    @app.post("/desktop/export/psd")
+    async def export_psd(request: Request, directory: str, source_name: str = "speech_bubble",
+                         x_sbe_token: str = Header(default="")):
+        require_token(request, x_sbe_token)
+        path = await save_desktop_psd(request, export_directory(directory), source_name)
+        return {"ok": True, "path": str(path), "filename": path.name}
 
     def cache_files() -> list[Path]:
         files: list[Path] = []
