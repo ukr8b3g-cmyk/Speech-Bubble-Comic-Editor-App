@@ -715,7 +715,7 @@ class DesktopCoreTest(unittest.TestCase):
                 path = Path(saved.json()["path"])
                 self.assertEqual(path.name, f"Page_{sequence:04d}.psd")
                 self.assertRegex(path.parent.name, r"^\d{4}-\d{2}$")
-                self.assertEqual(path.parent.parent, output)
+                self.assertTrue(path.parent.parent.samefile(output), path)
                 self.assertEqual(path.read_bytes(), psd)
             invalid = client.post(url, params=params, headers=headers, content=b"truncated")
             self.assertEqual(invalid.status_code, 422)
