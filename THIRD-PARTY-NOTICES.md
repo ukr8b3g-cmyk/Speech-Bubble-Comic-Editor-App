@@ -18,6 +18,8 @@ Python, FastAPI, pywebview, Pillow, browser APIs, system fonts, and other runtim
 
 The Windows build includes [ONNX Runtime](https://github.com/microsoft/onnxruntime) for local CPU inference. ONNX Runtime is licensed under the MIT License.
 
+InSPyReNet is the default selection. After you confirm, the app downloads `inspyrenet_base.onnx` (395,399,874 bytes) from the [MIT-licensed ONNX export](https://github.com/yashmishra12/inspyrenet-onnx/releases/tag/v1.0.0) of [transparent-background](https://github.com/plemeri/transparent-background). The expected SHA-256 is `31b7b16a77407d0c4a0d00c6c0e2790a53dacf8c0baf0eaa8ab0cc094951d016`.
+
 The optional `isnet-anime.onnx` model is not bundled in the installer. After explicit user consent, the app downloads it from the [rembg model release](https://github.com/danielgatis/rembg/releases/tag/v0.0.0), verifies its expected file size and SHA-256, and stores it locally. The model originates from [SkyTNT/anime-segmentation](https://github.com/SkyTNT/anime-segmentation) and is identified there as Apache-2.0 licensed. No rembg Python code is included or executed by this application.
 
 - Model: `isnet-anime.onnx`

@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from speech_bubble_editor.api import register_routes
 
-from .background_removal import BackgroundRemovalService, MAX_IMAGE_BYTES
+from .background_removal import BackgroundRemovalService, MAX_IMAGE_BYTES, MODELS
 from .paths import DesktopPaths
 from .project_store import ProjectStore
 from .recent_projects import RecentProjects
@@ -28,10 +28,18 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
     recent = RecentProjects(paths.recent)
     projects = ProjectStore()
     recovery = RecoveryStore(paths.recovery)
-    background_removal = BackgroundRemovalService(paths.models / "isnet-anime")
+    background_models: dict[str, BackgroundRemovalService] = {}
+
+    def selected_model(request: Request) -> BackgroundRemovalService:
+        name = request.query_params.get("model", "isnet-anime")
+        if name not in MODELS:
+            raise HTTPException(status_code=422, detail="Unknown background-removal model")
+        if name not in background_models:
+            background_models[name] = BackgroundRemovalService(paths.models / name, name)
+        return background_models[name]
+
     app = FastAPI(title="Speech Bubble Comic Editor App", docs_url=None, redoc_url=None)
     app.state.desktop_launch_token = token
-    app.state.background_removal = background_removal
     register_routes(app)
 
     @app.exception_handler(StarletteHTTPException)
@@ -92,7 +100,7 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
     @app.get("/desktop/background-removal/model")
     async def background_removal_model_status(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)
-        status = background_removal.status()
+        status = selected_model(request).status()
         if status.get("error"):
             status["error"] = localized_error(status["error"], settings.load().get("language", "auto"))
         return status
@@ -100,18 +108,26 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
     @app.post("/desktop/background-removal/model/download")
     async def background_removal_model_download(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)
-        return background_removal.start_download()
+        model = selected_model(request)
+        if "model" in request.query_params:
+            try:
+                payload = await request.json()
+            except ValueError:
+                payload = None
+            if not isinstance(payload, dict) or payload.get("confirmed") is not True:
+                raise HTTPException(status_code=400, detail="Download confirmation required")
+        return model.start_download()
 
     @app.post("/desktop/background-removal/model/cancel")
     async def background_removal_model_cancel(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)
-        return background_removal.cancel_download()
+        return selected_model(request).cancel_download()
 
     @app.delete("/desktop/background-removal/model")
     async def background_removal_model_delete(request: Request, x_sbe_token: str = Header(default="")):
         require_token(request, x_sbe_token)
         try:
-            return background_removal.remove_model()
+            return selected_model(request).remove_model()
         except RuntimeError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -123,7 +139,7 @@ def create_app(paths: DesktopPaths, launch_token: str | None = None) -> FastAPI:
             raise HTTPException(status_code=413, detail="画像サイズが大きすぎます。")
         raw = await request.body()
         try:
-            mask, width, height = await asyncio.to_thread(background_removal.infer_mask, raw)
+            mask, width, height = await asyncio.to_thread(selected_model(request).infer_mask, raw)
         except FileNotFoundError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         except (RuntimeError, ValueError, OSError) as error:

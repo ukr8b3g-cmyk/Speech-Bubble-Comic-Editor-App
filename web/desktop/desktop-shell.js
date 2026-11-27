@@ -189,6 +189,9 @@
         </details>
         <details>
           <summary>AI背景削除モデル</summary>
+          <label><span>背景削除方式</span>
+            <select data-desktop-background-model><option value="inspyrenet">InSPyReNet</option><option value="isnet-anime">isnet-anime</option></select>
+          </label>
           <div class="desktop-cache-row">
             <output data-desktop-background-model-status>確認待ち</output>
             <button type="button" data-desktop-action="background-model-refresh">更新</button>
@@ -196,7 +199,7 @@
             <button type="button" data-desktop-action="background-model-delete">モデルを削除</button>
           </div>
           <progress data-desktop-background-model-progress max="1" value="0" style="width:100%"></progress>
-          <p class="hint">isnet-anime（約168 MB、Apache-2.0）。モデルは初回利用時にユーザーデータへ保存され、プロジェクトや画像には含まれません。</p>
+          <p class="hint">モデルは初回の確認後にこのPCに保存されます。</p>
         </details>
         <details>
           <summary>ページ画像・変換履歴</summary>
@@ -899,12 +902,15 @@
   }
 
   async function refreshBackgroundModelStatus(dialog) {
+    const select = dialog.querySelector("[data-desktop-background-model]");
+    const id = select.value;
     const output = dialog.querySelector("[data-desktop-background-model-status]");
     const progress = dialog.querySelector("[data-desktop-background-model-progress]");
     if (!output || !progress) return null;
     output.textContent = desktopText("確認中…", "Checking…");
     try {
-      const payload = await desktopFetch("/desktop/background-removal/model");
+      const payload = await desktopFetch(`/desktop/background-removal/model?model=${encodeURIComponent(id)}`);
+      if (id !== select.value) return null;
       progress.value = Number(payload.progress || 0);
       output.textContent = payload.ready
         ? desktopText(`準備完了・${(Number(payload.size || 0) / (1024 * 1024)).toFixed(1)} MB`, `Ready · ${(Number(payload.size || 0) / (1024 * 1024)).toFixed(1)} MB`)
@@ -913,18 +919,24 @@
           : payload.error || desktopText("未取得", "Not downloaded");
       return payload;
     } catch (error) {
-      output.textContent = error?.message || desktopText("取得できませんでした", "Could not retrieve status");
+      if (id === select.value) output.textContent = error?.message || desktopText("取得できませんでした", "Could not retrieve status");
       return null;
     }
   }
 
   async function downloadBackgroundModel(dialog) {
-    if (!confirm(desktopText(
-      "isnet-anime背景削除モデル（約168 MB）を取得しますか？\nモデル: Apache-2.0",
-      "Download the isnet-anime background-removal model (about 168 MB)?\nModel: Apache-2.0",
-    ))) return;
-    await desktopFetch("/desktop/background-removal/model/download", { method: "POST", body: "{}" });
-    while (dialog.open) {
+    const select = dialog.querySelector("[data-desktop-background-model]");
+    const id = select.value;
+    const status = await refreshBackgroundModelStatus(dialog);
+    if (!status || status.ready || !dialog.open || id !== select.value) return;
+    if (status.state !== "downloading") {
+      const name = `${status.label} (${Math.round(status.size / 1048576)} MiB, ${status.license})`;
+      if (!confirm(desktopText(`${name} をダウンロードしますか？`, `Download ${name}?`))) return;
+      await desktopFetch(`/desktop/background-removal/model/download?model=${encodeURIComponent(id)}`, {
+        method: "POST", body: JSON.stringify({ confirmed: true }),
+      });
+    }
+    while (dialog.open && select.value === id) {
       const model = await refreshBackgroundModelStatus(dialog);
       if (!model || model.ready || model.state === "error" || model.state === "missing") break;
       await new Promise((resolve) => setTimeout(resolve, 350));
@@ -932,8 +944,11 @@
   }
 
   async function deleteBackgroundModel(dialog) {
-    if (!confirm(desktopText("背景削除モデルを削除しますか？", "Delete the background-removal model?"))) return;
-    await desktopFetch("/desktop/background-removal/model", { method: "DELETE" });
+    const select = dialog.querySelector("[data-desktop-background-model]");
+    const id = select.value;
+    const label = select.selectedOptions[0].textContent;
+    if (!confirm(desktopText(`${label} をこのPCから削除しますか？`, `Delete ${label} from this PC?`))) return;
+    await desktopFetch(`/desktop/background-removal/model?model=${encodeURIComponent(id)}`, { method: "DELETE" });
     await refreshBackgroundModelStatus(dialog);
   }
 
@@ -1155,7 +1170,8 @@
     ["マスク編集のUndo履歴数です。大きい画像では値を増やすほどメモリを使用します。", "Number of mask-edit Undo states. Higher values use more memory with large images."],
     ["モデルを取得", "Download Model"],
     ["モデルを削除", "Delete Model"],
-    ["isnet-anime（約168 MB、Apache-2.0）。モデルは初回利用時にユーザーデータへ保存され、プロジェクトや画像には含まれません。", "isnet-anime (about 168 MB, Apache-2.0). The model is stored in user data on first use and is not embedded in projects or images."],
+    ["背景削除方式", "Background removal model"],
+    ["モデルは初回の確認後にこのPCに保存されます。", "The model is saved on this PC after you confirm the first download."],
     ["縦4コマ", "Vertical 4-panel Comic"],
     ["標準4コマ", "Standard 4-panel"],
     ["キャンバス幅", "Canvas Width"],
@@ -1596,6 +1612,10 @@
       if (event.target.matches('[data-desktop-setting="language"]')) applyLanguage(event.target.value);
     });
     settings.addEventListener("change", async (event) => {
+      if (event.target.matches("[data-desktop-background-model]")) {
+        await refreshBackgroundModelStatus(settings);
+        return;
+      }
       const key = event.target.dataset.desktopSetting;
       if (!["theme", "language"].includes(key)) return;
       try {

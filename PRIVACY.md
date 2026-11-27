@@ -12,7 +12,7 @@ Speech Bubble Comic Editor AppはWindows PC内でローカル動作します。�
 - ローカルのモデル保存先: ユーザーが取得を許可したAI背景削除モデル
 - ユーザーが選択した出力先: 書き出した画像と任意のOverlay
 
-AI背景削除は画像をWindows PC内で処理し、画像を外部へ送信しません。初回にユーザーが確認画面で許可した場合だけ、isnet-animeモデル（約168MB）をGitHub Releaseから取得します。Settingsからモデルを削除できます。
+AI背景削除はWindows PC内で画像を処理します。InSPyReNet（約377 MiB）とisnet-anime（約168 MiB）は、それぞれ初回にユーザーが許可した時点でGitHub Releasesから取得します。Settingsから個別に削除できます。
 
 ユーザー操作によりGitHubや文書リンクを開く場合があります。ホストアプリ、ブラウザー、インストーラー、Git、GitHub自体が行うその他の通信は本方針の対象外です。
 
@@ -28,6 +28,6 @@ The following data is stored locally:
 - Local model storage: the AI background-removal model downloaded after user consent
 - User-selected output location: exported images and optional overlays
 
-AI background removal processes images locally on the Windows PC and does not upload them. Only after the user confirms the first-use prompt, the app downloads the isnet-anime model (about 168 MB) from a GitHub Release. The model can be removed from Settings.
+AI background removal processes images locally on the Windows PC. Each model, InSPyReNet (about 377 MiB) or isnet-anime (about 168 MiB), downloads from GitHub Releases after you confirm its first use. You can remove either model individually in Settings.
 
 GitHub or documentation links may open only after a user action. Other network activity performed by the host application, browser, installer, Git, or GitHub itself is outside this policy.

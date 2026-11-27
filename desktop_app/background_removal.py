@@ -5,19 +5,37 @@ import io
 import os
 import threading
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageOps
 
 
-MODEL_NAME = "isnet-anime"
-MODEL_FILENAME = "isnet-anime.onnx"
-MODEL_URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-anime.onnx"
-MODEL_SHA256 = "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99"
-MODEL_SIZE = 176_069_933
-MODEL_SOURCE_URL = "https://github.com/SkyTNT/anime-segmentation"
-MODEL_LICENSE = "Apache-2.0"
+@dataclass(frozen=True)
+class ModelSpec:
+    filename: str
+    url: str
+    sha256: str
+    size: int
+    source_url: str
+    license: str
+
+
+MODELS = {
+    "inspyrenet": ModelSpec(
+        "inspyrenet_base.onnx",
+        "https://github.com/yashmishra12/inspyrenet-onnx/releases/download/v1.0.0/inspyrenet_base.onnx",
+        "31b7b16a77407d0c4a0d00c6c0e2790a53dacf8c0baf0eaa8ab0cc094951d016",
+        395_399_874, "https://github.com/plemeri/transparent-background", "MIT",
+    ),
+    "isnet-anime": ModelSpec(
+        "isnet-anime.onnx",
+        "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-anime.onnx",
+        "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99",
+        176_069_933, "https://github.com/SkyTNT/anime-segmentation", "Apache-2.0",
+    ),
+}
 MAX_IMAGE_BYTES = 96 * 1024 * 1024
 MAX_IMAGE_PIXELS = 100_000_000
 
@@ -27,19 +45,20 @@ class DownloadCancelled(RuntimeError):
 
 
 class BackgroundRemovalService:
-    def __init__(self, model_directory: Path):
+    def __init__(self, model_directory: Path, model_name: str = "isnet-anime"):
+        self.model_name = model_name
+        self.model = MODELS[model_name]
         self.model_directory = model_directory
-        self.model_directory.mkdir(parents=True, exist_ok=True)
-        self.model_path = self.model_directory / MODEL_FILENAME
-        self.partial_path = self.model_directory / f"{MODEL_FILENAME}.part"
+        self.model_path = model_directory / self.model.filename
+        self.partial_path = model_directory / f"{self.model.filename}.part"
         self._state_lock = threading.RLock()
         self._inference_lock = threading.Lock()
         self._cancel = threading.Event()
         self._download_thread: threading.Thread | None = None
         self._session = None
         self._state = "ready" if self._valid_model() else "missing"
-        self._downloaded = MODEL_SIZE if self._state == "ready" else 0
-        self._total = MODEL_SIZE
+        self._downloaded = self.model.size if self._state == "ready" else 0
+        self._total = self.model.size
         self._error = ""
 
     @staticmethod
@@ -52,7 +71,7 @@ class BackgroundRemovalService:
 
     def _valid_model(self) -> bool:
         try:
-            return self.model_path.stat().st_size == MODEL_SIZE and self._file_sha256(self.model_path) == MODEL_SHA256
+            return self.model_path.stat().st_size == self.model.size and self._file_sha256(self.model_path) == self.model.sha256
         except OSError:
             return False
 
@@ -60,12 +79,14 @@ class BackgroundRemovalService:
         with self._state_lock:
             active = bool(self._download_thread and self._download_thread.is_alive())
             state = "downloading" if active else self._state
-            total = max(1, int(self._total or MODEL_SIZE))
+            total = max(1, int(self._total or self.model.size))
             downloaded = max(0, int(self._downloaded))
             return {
                 "ok": True,
-                "model": MODEL_NAME,
-                "filename": MODEL_FILENAME,
+                "model": self.model_name,
+                "label": "InSPyReNet" if self.model_name == "inspyrenet" else "isnet-anime",
+                "available": True,
+                "filename": self.model.filename,
                 "state": state,
                 "ready": state == "ready",
                 "downloaded": downloaded,
@@ -73,18 +94,18 @@ class BackgroundRemovalService:
                 "progress": min(1.0, downloaded / total),
                 "error": self._error,
                 "path": str(self.model_path),
-                "size": MODEL_SIZE,
-                "sha256": MODEL_SHA256,
-                "download_url": MODEL_URL,
-                "source_url": MODEL_SOURCE_URL,
-                "license": MODEL_LICENSE,
+                "size": self.model.size,
+                "sha256": self.model.sha256,
+                "download_url": self.model.url,
+                "source_url": self.model.source_url,
+                "license": self.model.license,
             }
 
     def start_download(self) -> dict:
         with self._state_lock:
             if self._valid_model():
                 self._state = "ready"
-                self._downloaded = MODEL_SIZE
+                self._downloaded = self.model.size
                 self._error = ""
                 return self.status()
             if self._download_thread and self._download_thread.is_alive():
@@ -92,7 +113,7 @@ class BackgroundRemovalService:
             self._cancel.clear()
             self._state = "downloading"
             self._downloaded = 0
-            self._total = MODEL_SIZE
+            self._total = self.model.size
             self._error = ""
             self._download_thread = threading.Thread(
                 target=self._download_model,
@@ -108,17 +129,18 @@ class BackgroundRemovalService:
 
     def _download_model(self) -> None:
         try:
+            self.model_directory.mkdir(parents=True, exist_ok=True)
             try:
                 self.partial_path.unlink()
             except FileNotFoundError:
                 pass
             request = urllib.request.Request(
-                MODEL_URL,
+                self.model.url,
                 headers={"User-Agent": "SpeechBubbleComicEditorApp/0.1.3"},
             )
             digest = hashlib.sha256()
             with urllib.request.urlopen(request, timeout=60) as response, self.partial_path.open("wb") as output:
-                header_total = int(response.headers.get("Content-Length") or MODEL_SIZE)
+                header_total = int(response.headers.get("Content-Length") or self.model.size)
                 with self._state_lock:
                     self._total = header_total
                 while True:
@@ -133,15 +155,15 @@ class BackgroundRemovalService:
                         self._downloaded += len(chunk)
                 output.flush()
                 os.fsync(output.fileno())
-            if self.partial_path.stat().st_size != MODEL_SIZE:
+            if self.partial_path.stat().st_size != self.model.size:
                 raise ValueError("モデルのファイルサイズが一致しません。")
-            if digest.hexdigest() != MODEL_SHA256:
+            if digest.hexdigest() != self.model.sha256:
                 raise ValueError("モデルのSHA-256が一致しません。")
             os.replace(self.partial_path, self.model_path)
             with self._state_lock:
                 self._state = "ready"
-                self._downloaded = MODEL_SIZE
-                self._total = MODEL_SIZE
+                self._downloaded = self.model.size
+                self._total = self.model.size
                 self._error = ""
         except DownloadCancelled as error:
             with self._state_lock:
@@ -207,26 +229,31 @@ class BackgroundRemovalService:
         if source.width * source.height > MAX_IMAGE_PIXELS:
             raise ValueError("画像の解像度が大きすぎます。")
 
-        resized = source.resize((1024, 1024), Image.Resampling.LANCZOS)
+        inspyrenet = self.model_name == "inspyrenet"
+        resampling = Image.Resampling.BILINEAR if inspyrenet else Image.Resampling.LANCZOS
+        resized = source.resize((1024, 1024), resampling)
         image_array = np.asarray(resized, dtype=np.float32)
-        image_array /= max(float(np.max(image_array)), 1e-6)
-        image_array[:, :, 0] = image_array[:, :, 0] - 0.485
-        image_array[:, :, 1] = image_array[:, :, 1] - 0.456
-        image_array[:, :, 2] = image_array[:, :, 2] - 0.406
+        image_array /= 255.0 if inspyrenet else max(float(np.max(image_array)), 1e-6)
+        image_array -= np.array((0.485, 0.456, 0.406), dtype=np.float32)
+        if inspyrenet:
+            image_array /= np.array((0.229, 0.224, 0.225), dtype=np.float32)
         tensor = np.expand_dims(image_array.transpose((2, 0, 1)), 0).astype(np.float32)
 
         with self._inference_lock:
             session = self._load_session()
             output = session.run(None, {session.get_inputs()[0].name: tensor})[0]
         prediction = np.asarray(output[:, 0, :, :], dtype=np.float32)
-        minimum = float(np.min(prediction))
-        maximum = float(np.max(prediction))
-        if maximum - minimum > 1e-6:
-            prediction = (prediction - minimum) / (maximum - minimum)
+        if inspyrenet:
+            prediction = np.clip(prediction, 0, 1)
         else:
-            prediction.fill(0)
+            minimum = float(np.min(prediction))
+            maximum = float(np.max(prediction))
+            if maximum - minimum > 1e-6:
+                prediction = (prediction - minimum) / (maximum - minimum)
+            else:
+                prediction.fill(0)
         mask = Image.fromarray((np.squeeze(prediction) * 255).astype(np.uint8), mode="L")
-        mask = mask.resize(source.size, Image.Resampling.LANCZOS)
+        mask = mask.resize(source.size, resampling)
         output_stream = io.BytesIO()
         mask.save(output_stream, format="PNG", optimize=True)
         return output_stream.getvalue(), source.width, source.height

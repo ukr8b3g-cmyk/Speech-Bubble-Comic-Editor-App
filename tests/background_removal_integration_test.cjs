@@ -97,7 +97,9 @@ assert.match(script, /setScale\(view\.scale \* [\s\S]*event\.clientX, event\.cli
 assert.doesNotMatch(script, /prompt\(/);
 
 assert.match(script, /candidates\.find\(\(candidate\) => candidate\.selected\) \|\| null/);
-assert.match(script, /fetch\("\/desktop\/background-removal\/infer"/);
+assert.ok(script.includes('/desktop/background-removal/${path}?model=${encodeURIComponent(id)}'));
+assert.match(script, /fetch\(modelUrl\("infer"\)/);
+assert.match(script, /data-br-model-select/);
 assert.match(script, /let maskMode = "auto"/);
 assert.match(script, /maskModeStates = \{ auto: null, guided: null \}/);
 assert.match(script, /function initializeGuideMasks\(\)/);
@@ -151,7 +153,7 @@ for (const route of [
   "/desktop/background-removal/infer",
 ]) assert.ok(server.includes(route), `Desktop API must include ${route}`);
 
-assert.match(service, /MODEL_SHA256 = "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99"/);
+assert.match(service, /digest\.hexdigest\(\) != self\.model\.sha256/);
 assert.match(service, /providers=\["CPUExecutionProvider"\]/);
 assert.match(service, /os\.replace\(self\.partial_path, self\.model_path\)/);
 assert.match(service, /self\._session = ort\.InferenceSession/);

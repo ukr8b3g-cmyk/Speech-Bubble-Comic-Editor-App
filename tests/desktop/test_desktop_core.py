@@ -612,6 +612,24 @@ class DesktopCoreTest(unittest.TestCase):
             self.assertEqual(response.json()["model"], "isnet-anime")
             self.assertFalse(response.json()["ready"])
 
+            headers = {"X-SBE-Token": "desktop-test-token"}
+            route = "/desktop/background-removal/model"
+            for name in ("inspyrenet", "isnet-anime"):
+                params = {"model": name}
+                status = client.get(route, params=params, headers=headers).json()
+                self.assertEqual(status["model"], name)
+                self.assertFalse(status["ready"])
+                with mock.patch("desktop_app.background_removal.BackgroundRemovalService.start_download") as download:
+                    for payload in ({}, {"confirmed": False}):
+                        denied = client.post(route + "/download", params=params, headers=headers, json=payload)
+                        self.assertEqual(denied.status_code, 400)
+                    download.assert_not_called()
+                    download.return_value = {"state": "downloading"}
+                    accepted = client.post(route + "/download", params=params, headers=headers, json={"confirmed": True})
+                    self.assertEqual(accepted.status_code, 200)
+                    download.assert_called_once()
+            self.assertEqual(client.get(route, params={"model": "unknown"}, headers=headers).status_code, 422)
+
     def test_background_removal_inference_returns_png_mask(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = make_paths(Path(temporary) / "app")

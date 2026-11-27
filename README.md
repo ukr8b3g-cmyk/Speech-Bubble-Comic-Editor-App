@@ -1,7 +1,7 @@
 
 <img width="1909" height="1137" alt="{D55D7671-7449-4075-A3ED-9598A90F50F5}" src="https://github.com/user-attachments/assets/bc074c7c-9c2e-4a28-bf3c-a197da8b8a2b" />
 
-# Speech Bubble Comic Editor App 1.0.2
+# Speech Bubble Comic Editor App 1.1.0
 
 
 生成画像・既存画像を、漫画ページや4コマへ編集・仕上げする、Windows向けローカル漫画エディターです。
@@ -22,21 +22,24 @@ ComfyUI向け [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubbl
 
 ## 配布状況
 
-**最新版：Windows x64版 1.0.2（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.0.2です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
+**最新版：Windows x64版 1.1.0（安定版）。** アプリ・セットアップの表示およびプロジェクトに記録するアプリバージョンは1.1.0です。3ワークスペースと既存`.sbeproj`の互換性を維持しています。
 
 1.0.1では保存・読込のデータ保護、プロジェクト切替時の確認、外部パレットの編集同期、カスタムスタンプの同梱、Overlay PNG設定を修正しました。1.0で追加した日本語／英語UIと素材検索も引き続き利用できます。
 
 **1.0.2ではManga Finishを追加し、狭いレイヤーパネルで見出しが縦に折り返される問題を修正しました。** MangaScreenの著作権表示とMITライセンス全文を配布物へ同梱しています。変更点は[v1.0.2リリースノート](docs/release-1.0.2.md)を参照してください。公開済み1.0.1とその配布ファイルも保持しています。
 
-**最新版 1.0.2（Windows x64）**
+**1.1.0では背景削除の標準をInSPyReNetに変更しました。** ［背景削除］の［背景削除方式］で、従来のisnet-animeにも切り替えられます。各モデルは初回の確認後にダウンロードし、次回からは保存済みのものを使います。[v1.1.0リリースノート](docs/release-1.1.0.md)
 
-- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe)
-- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-portable.zip)
-- [v1.0.2 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.2)
-- [v1.0.2 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SHA256SUMS.txt)
+**最新版 1.1.0（Windows x64）**
+
+- [Windows Installer EXE をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe)
+- [ZIP版（ポータブル）をダウンロード](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-portable.zip)
+- [v1.1.0 Releaseページ](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.1.0)
+- [v1.1.0 SHA-256 チェックサム](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SHA256SUMS.txt)
 
 **旧バージョン（削除せず引き続き配布）**
 
+- v1.0.2: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.2)
 - v1.0.1: [Releaseと配布ファイル](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0.1)
 
 - v1.0: [Installer EXE](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-setup.exe) / [Portable ZIP](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0/SpeechBubbleComicEditorApp-v1.0-win-x64-portable.zip) / [Release](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/tag/v1.0)
@@ -58,7 +61,7 @@ Settingsで日本語／英語を切り替えられます。1.0では内蔵SFX 19
 
 **通常はインストーラー版を使用してください。**
 
-- インストーラー: [SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.0.2/SpeechBubbleComicEditorApp-v1.0.2-win-x64-setup.exe)
+- インストーラー: [SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App/releases/download/v1.1.0/SpeechBubbleComicEditorApp-v1.1.0-win-x64-setup.exe)
 - Gitで取得: `git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Comic-Editor-App.git`
 - ソース版の初回起動: `setup_and_start.cmd`
 - ソース版の2回目以降: `start.cmd`
@@ -95,7 +98,7 @@ EXE版または`start.cmd`からの起動が通常の利用方法です。シス
 - **非破壊画像編集**: Crop、回転、反転、不透明度、Cover / Contain、拡大率、オフセットを保持したまま再編集
 - **複数選択**: 移動・拡大縮小・回転、左右上下中央への整列、水平・垂直の均等配置
 - **複数Text一括編集**: フォント、サイズ、文字色、アウトライン、Tracking、Bold / Italicなどをまとめて変更
-- **背景削除**: `isnet-anime`を使うローカルAI背景削除、マスク編集、フリンジ・マット・エッジカラー補正
+- **背景削除**: InSPyReNetとisnet-animeを切り替えて画像を切り抜けます。マスク編集、フリンジ・マット・エッジカラー補正にも対応します。
 - **コミック変換**: Manga Finishの6プリセットと従来の白黒変換を同じ画面で選択。一枚画像では新規レイヤー、4コマ／コミックではPage Imagesへ追加
 - **漫画素材**: Speech Bubbles、Text、SFX、Stamps、Frames、Emphasis Lines。各Drawerの幅やSFX/Stampセクション状態を記憶
 - **文字**: Windowsのシステムフォント、日本語フォント、縦書き、フォントお気に入り・履歴
@@ -230,8 +233,8 @@ Manga Finishを選ぶと、専用のプリセットと調整欄が表示され�
 
 - 4コマ漫画: 選択中のページ画像を優先し、次に選択コマの画像を使用します。結果は新しいページ画像として追加され、コマへは自動配置されません。
 - 一枚画像: 選択中の画像レイヤーから透過結果を作り、新しい画像レイヤーとして追加します。元画像は非表示で保持され、Speech Bubbles、Text、SFX、Stampsなどのレイヤーと4コマ漫画側の状態も維持されます。
-- 初回のみ: 確認後にisnet-animeモデル（約168MB）をGitHub Releaseから取得します。モデルはローカルへ保存され、推論もWindows PC上のCPUで実行されます。
-- モデル管理: Settingsの「AI背景削除モデル」で取得状態の確認、取得、中止、削除ができます。
+- 「背景削除方式」でInSPyReNet（標準、約377 MiB）とisnet-anime（約168 MiB）を選べます。各モデルの初回利用時に確認してダウンロードします。切り抜きはこのPCのCPUで行います。
+- Settingsの「AI背景削除モデル」では、選んだモデルの取得状況を確認し、ダウンロードや削除ができます。
 
 ### 自動選択とエッジカラー補正
 
@@ -462,7 +465,7 @@ Settingsで固定の出力先を指定できます。毎回保存先を選択す
 - 3ワークスペースは独立しており、モード間のレイヤー直接移動には対応していません。
 - キャンバス背景パターンのユーザープリセット保存は未対応です。
 - AI背景削除は初回にモデルの取得が必要です。取得後の推論はローカルCPUで行います。
-- Manga Finishは、ローカルCPUテスト、Chromeでの3ワークスペース操作、原寸PNGの適用、プロジェクト保存・再読込、Windows向けビルドを確認しています。1.0.2はWindows CIで回帰テスト・配布物・ライセンス同梱・EXE自己検証を通してから公開します。クリーンWindowsでのインストール／更新／アンインストールは未確認です。詳細は[Manga Finish実装・検証メモ](docs/manga-finish.md)を参照してください。
+- Manga Finishは、ローカルCPUテスト、Chromeでの3ワークスペース操作、原寸PNGの適用、プロジェクト保存・再読込、Windows向けビルドを確認しています。クリーンWindowsでのインストール／更新／アンインストールは未確認です。詳細は[Manga Finish実装・検証メモ](docs/manga-finish.md)を参照してください。
 
 1.0.1ではWindows CIでPython・JavaScript回帰テスト、インストーラーとZIPのビルド、SHA-256検証を実施しています。クリーンなWindows環境でのインストール／更新／アンインストール、ネイティブのファイル選択、WebView2の実GUI操作は、この1.0.1の自動検証には含まれません。詳細は[v1.0.1リリースノート](docs/release-1.0.1.md)を参照してください。
 
@@ -478,7 +481,7 @@ EditorのUIソースは`web\speech-bubble-editor.html`ですが、直接表示�
 
 ソース版を`python -m desktop_app.main --portable`で起動した場合はリポジトリ内の`data`を使用します。配布EXEを`SpeechBubbleComicEditorApp.exe --portable`で起動した場合は、展開先の`_internal\data`を使用します。
 
-保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.0.2という値と、保存形式のバージョンは別に管理しています。
+保存形式の詳細は[Project format](docs/project-format.md)を参照してください。アプリの1.1.0という値と、保存形式のバージョンは別に管理しています。
 
 ## 問い合わせ・不具合報告
 
